@@ -1,0 +1,45 @@
+@cookieJar = myJar
+### To read own projects
+GET http://localhost:4325/project-app/project
+Cookie: {{cookieJar}}
+
+### To create a project
+POST http://localhost:4325/project-app/project
+Content-Type: application/json
+Cookie: {{cookieJar}} 
+
+{
+  "name": "name1",
+  "workspace": "69fc2f8bdccaa56b64433ac4",
+  "members": ["69faf900f690ddc8eddb37cc"],
+  "status": true
+}
+
+### To update own project
+PUT http://localhost:4325/project-app/project
+Content-Type: application/json
+Cookie: {{cookieJar}} 
+
+{
+    "projectId" : "69fc505fa86f60e2dc33372c",
+    "name" : "name2"
+}
+
+### To delete own project
+PATCH http://localhost:4325/project-app/project/69fc505fa86f60e2dc33372c
+Content-Type: application/json
+Cookie: {{cookieJar}} 
+
+{
+    "status":false
+}
+
+### to add member
+PATCH http://localhost:4325/project-app/project
+Content-Type: application/json
+Cookie: {{cookieJar}} 
+
+{
+   "projectId":"69fc505fa86f60e2dc33372c",
+   "memberId":"69faf66457a918bc32c7009e"
+}

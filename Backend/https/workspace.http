@@ -1,0 +1,63 @@
+### VARIABLES
+@baseUrl=http://localhost:4325
+@cookieJar = myJar
+@workspaceId=69fc2f8bdccaa56b64433ac4
+@userId=69faf66457a918bc32c7009e
+
+
+### CREATE WORKSPACE
+POST {{baseUrl}}/work-space-app/workspaces
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+  "name": "My Workspace1",
+  "owner":"69faf900f690ddc8eddb37cc",
+  "members":[
+    {
+      "user":"69faf900f690ddc8eddb37cc",
+      "role":"ADMIN"
+    }
+  ]
+}
+
+
+### GET ALL WORKSPACES
+GET {{baseUrl}}/work-space-app/workspaces
+Cookie: {{cookieJar}}
+
+
+### GET SINGLE WORKSPACE
+GET {{baseUrl}}/work-space-app/workspaces/{{workspaceId}}
+Cookie: {{cookieJar}}
+
+
+### UPDATE WORKSPACE
+PUT {{baseUrl}}/work-space-app/workspaces/{{workspaceId}}
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+  "name": "Updated Workspace Name"
+}
+
+
+### DELETE WORKSPACE
+DELETE {{baseUrl}}/work-space-app/workspaces/{{workspaceId}}
+Cookie: {{cookieJar}}
+
+
+### ADD MEMBER
+POST {{baseUrl}}/work-space-app/workspaces/{{workspaceId}}/members
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+  "userId": "{{userId}}",
+  "role": "MEMBER"
+}
+
+
+### REMOVE MEMBER
+DELETE {{baseUrl}}/work-space-app/workspaces/{{workspaceId}}/members/{{userId}}
+Cookie: {{cookieJar}}

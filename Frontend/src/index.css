@@ -1,0 +1,6 @@
+/* Global stylesheet: loads Tailwind and app-wide font helpers. */
+@import 'tailwindcss';
+
+.font-loader {
+  font-family: 'Nunito';
+}

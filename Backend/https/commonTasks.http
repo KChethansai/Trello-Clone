@@ -1,0 +1,36 @@
+@cookieJar = myJar
+### To read own tasks
+GET http://localhost:4325/task-app/task
+Cookie: {{cookieJar}}
+
+### To create a task
+POST http://localhost:4325/task-app/task
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+    "projectId" : "69fc505fa86f60e2dc33372c",
+    "title" : "task5",
+    "description" : "do this task1",
+    "memberId" : "69faf66457a918bc32c7009e"
+}
+
+### To update own task
+PUT http://localhost:4325/task-app/task
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+    "taskId" : "69fc649ce080ec9d27f5b400",
+    "title" : "task2"
+}
+
+### To delete own task
+PATCH http://localhost:4325/task-app/task
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+    "taskId" : "69fc663631a0104c76f53db6",
+    "status":false
+}

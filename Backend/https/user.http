@@ -1,0 +1,47 @@
+@baseUrl = http://localhost:4325
+@cookieJar = myJar
+
+### REGISTER
+POST {{baseUrl}}/user-app/register
+Content-Type: application/json
+
+{
+    "name": "space23",
+    "email": "sapc24@gmail.com",
+    "password": "space123",
+    "profilePic": "no",
+    "role": "MEMBER"
+}
+
+### LOGIN (stores cookie)
+POST {{baseUrl}}/user-app/login
+Content-Type: application/json
+
+{
+    "email": "sapc23@gmail.com",
+    "password": "space123"
+}
+
+### CHANGE PASSWORD (uses cookie)
+PUT {{baseUrl}}/user-app/change-password
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+    "oldPassword": "space123",
+    "newPassword": "space345"
+}
+
+### UPDATE PROFILE (uses cookie)
+PUT {{baseUrl}}/user-app/profile
+Content-Type: application/json
+Cookie: {{cookieJar}}
+
+{
+    "name": "space1",
+    "email": "sapce@gmail.com"
+}
+
+### LOGOUT (uses cookie)
+POST {{baseUrl}}/user-app/logout
+Cookie: {{cookieJar}}
