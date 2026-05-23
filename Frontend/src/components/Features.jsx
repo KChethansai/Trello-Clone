@@ -5,7 +5,7 @@ const featuresData = [
   {
     title: 'Inbox',
     desc: 'Capture every vital detail from emails, Slack, and more directly into your Kanvora Inbox.',
-    img: 'https://images.ctfassets.net/rz1oowkt5gyp/4vK9L1yVpe00r940X3a31c/64deca2bbaeb9d4de1e3a6efdf19db0b/Collaboration.png?w=740&fm=webp',
+    img: 'https://images.ctfassets.net/rz1oowkt5gyp/15yelj0vFDnyOgwyWAZSup/bbdc0dfa821ff9056b2eae8a782c14bf/inbox-hero-updated.png?w=1440&fm=webp',
     path: '/inbox'
   },
   {
