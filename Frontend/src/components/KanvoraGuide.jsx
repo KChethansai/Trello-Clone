@@ -268,17 +268,7 @@ function KanvoraGuide() {
         </div>
 
         {/* video placeholder */}
-        <div className="bg-linear-to-br from-blue-950 to-blue-800 rounded-3xl p-12 text-center mb-20">
-          <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-5 cursor-pointer hover:bg-white/30 transition-colors">
-            <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-14 border-l-white ml-1" />
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-2">
-            Watch: Kanvora in 5 minutes
-          </h3>
-          <p className={`${surfaceBg} text-sm`}>
-            A quick walkthrough of projects, lists, cards, and automations.
-          </p>
-        </div>
+
 
         {/* FAQ */}
         <h2 className={`text-3xl font-bold ${primaryText} mb-8 text-center`}>
