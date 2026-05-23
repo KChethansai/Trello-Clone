@@ -1,0 +1,154 @@
+// notificationStore: Zustand store for all notification state and API calls.
+import { create } from 'zustand'
+import axios from 'axios'
+import { io } from 'socket.io-client'
+import { API_BASE_URL } from '../config/api'
+
+// Reuse the same socket singleton already used by projectStore when possible.
+// We get it lazily so the store can be imported without side effects.
+let _socket = null
+
+const getSocket = () => {
+  if (!_socket) {
+    _socket = io(API_BASE_URL, {
+      withCredentials: true,
+      autoConnect: true,
+      transports: ['websocket']
+    })
+  }
+  return _socket
+}
+
+export const useNotificationStore = create((set, get) => ({
+  notifications: [],
+  unreadCount: 0,
+  loading: false,
+  socketBound: false,
+
+  // ─── Socket ─────────────────────────────────────────────────────────────────
+
+  bindUserRoom: (userId) => {
+    if (!userId || get().socketBound) return
+
+    const sock = getSocket()
+    sock.emit('join-user', userId)
+
+    sock.off('new-notification')
+    sock.on('new-notification', (notif) => {
+      set((s) => ({
+        notifications: [notif, ...s.notifications],
+        unreadCount: s.unreadCount + 1
+      }))
+    })
+
+    set({ socketBound: true })
+  },
+
+  unbindUserRoom: () => {
+    const sock = getSocket()
+    sock.off('new-notification')
+    set({ socketBound: false })
+  },
+
+  // ─── Fetch ───────────────────────────────────────────────────────────────────
+
+  fetchNotifications: async () => {
+    set({ loading: true })
+    try {
+      const res = await axios.get(`${API_BASE_URL}/notifications`, {
+        withCredentials: true
+      })
+      const list = res.data.payload || []
+      set({
+        notifications: list,
+        unreadCount: list.filter((n) => !n.read).length,
+        loading: false
+      })
+    } catch {
+      set({ loading: false })
+    }
+  },
+
+  // ─── Read ────────────────────────────────────────────────────────────────────
+
+  markRead: async (id) => {
+    // optimistic
+    set((s) => {
+      const updated = s.notifications.map((n) =>
+        n._id === id ? { ...n, read: true } : n
+      )
+      return { notifications: updated, unreadCount: updated.filter((n) => !n.read).length }
+    })
+    try {
+      await axios.put(`${API_BASE_URL}/notifications/${id}/read`, {}, { withCredentials: true })
+    } catch { /* silent */ }
+  },
+
+  markAllRead: async () => {
+    set((s) => ({
+      notifications: s.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0
+    }))
+    try {
+      await axios.put(`${API_BASE_URL}/notifications/read-all`, {}, { withCredentials: true })
+    } catch { /* silent */ }
+  },
+
+  // ─── Delete ──────────────────────────────────────────────────────────────────
+
+  deleteNotif: async (id) => {
+    set((s) => {
+      const updated = s.notifications.filter((n) => n._id !== id)
+      return { notifications: updated, unreadCount: updated.filter((n) => !n.read).length }
+    })
+    try {
+      await axios.delete(`${API_BASE_URL}/notifications/${id}`, { withCredentials: true })
+    } catch { /* silent */ }
+  },
+
+  // ─── Invite ──────────────────────────────────────────────────────────────────
+
+  sendInvite: async ({ projectId, recipientEmail }) => {
+    const res = await axios.post(
+      `${API_BASE_URL}/notifications/invite`,
+      { projectId, recipientEmail },
+      { withCredentials: true }
+    )
+    return res.data
+  },
+
+  acceptInvite: async (id) => {
+    const res = await axios.post(
+      `${API_BASE_URL}/notifications/${id}/accept`,
+      {},
+      { withCredentials: true }
+    )
+    // update local state
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n._id === id ? { ...n, status: 'accepted', read: true } : n
+      ),
+      unreadCount: s.notifications
+        .map((n) => (n._id === id ? { ...n, read: true } : n))
+        .filter((n) => !n.read).length
+    }))
+    return res.data
+  },
+
+  rejectInvite: async (id) => {
+    const res = await axios.post(
+      `${API_BASE_URL}/notifications/${id}/reject`,
+      {},
+      { withCredentials: true }
+    )
+    set((s) => ({
+      notifications: s.notifications.map((n) =>
+        n._id === id ? { ...n, status: 'rejected', read: true } : n
+      ),
+      unreadCount: s.notifications
+        .map((n) => (n._id === id ? { ...n, read: true } : n))
+        .filter((n) => !n.read).length
+    }))
+    return res.data
+  }
+}))

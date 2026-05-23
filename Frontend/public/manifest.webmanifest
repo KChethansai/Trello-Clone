@@ -1,0 +1,18 @@
+{
+  "name": "Kanvora Workspace",
+  "short_name": "Workspace",
+  "description": "Offline-ready workspace boards, cards, analytics, and collaboration.",
+  "start_url": "/main-page",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#1d2125",
+  "theme_color": "#0d9488",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

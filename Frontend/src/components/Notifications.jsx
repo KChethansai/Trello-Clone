@@ -1,0 +1,306 @@
+// Notifications component: full notification panel with invite accept/reject support.
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import {
+  BsBell,
+  BsCheck2All,
+  BsTrash,
+  BsCreditCard,
+  BsPeopleFill,
+  BsEnvelopeCheck,
+  BsCheckCircle,
+  BsXCircle,
+  BsX,
+  BsDot
+} from 'react-icons/bs'
+import { useNotificationStore } from '../store/notificationStore'
+import {
+  dashboardMutedColor,
+  dashboardPanelElevated,
+  dashboardTextColor,
+  overlayCloseBtn,
+  overlayHeader,
+  overlayPanel,
+  overlayTitle
+} from '../Styles/common'
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const typeIcon = (type, status) => {
+  if (type === 'invite') {
+    if (status === 'accepted') return <BsCheckCircle className="text-emerald-400" />
+    if (status === 'rejected') return <BsXCircle className="text-[#9fadbc]" />
+    return <BsEnvelopeCheck className="text-[#ff8aa0]" />
+  }
+  const map = {
+    card: <BsCreditCard className="text-blue-400" />,
+    member: <BsPeopleFill className="text-green-400" />,
+    mention: <span className="text-purple-400 font-bold text-sm">@</span>,
+    activity: <BsBell className="text-amber-400" />,
+    default: <BsBell className="text-[#9fadbc]" />
+  }
+  return map[type] ?? map.default
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+const statusBadge = (status) => {
+  if (status === 'accepted')
+    return (
+      <span className="ml-auto text-[10px] font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full whitespace-nowrap">
+        Accepted
+      </span>
+    )
+  if (status === 'rejected')
+    return (
+      <span className="ml-auto text-[10px] font-semibold text-[#8c9bab] bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 rounded-full whitespace-nowrap">
+        Rejected
+      </span>
+    )
+  return null
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton() {
+  return (
+    <div className="flex flex-col divide-y divide-[#2c333a]">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-start gap-3 px-5 py-4">
+          <div className="w-8 h-8 rounded-full bg-[#1b1b1b] animate-pulse shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 rounded bg-[#1b1b1b] animate-pulse w-5/6" />
+            <div className="h-2.5 rounded bg-[#1b1b1b] animate-pulse w-1/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+function Notifications() {
+  const navigate = useNavigate()
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    fetchNotifications,
+    markRead,
+    markAllRead,
+    deleteNotif,
+    acceptInvite,
+    rejectInvite
+  } = useNotificationStore()
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [fetchNotifications])
+
+  const handleAccept = async (id) => {
+    try {
+      await acceptInvite(id)
+      toast.success('Joined project successfully!')
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not accept invite')
+    }
+  }
+
+  const handleReject = async (id) => {
+    try {
+      await rejectInvite(id)
+      toast('Invite declined', { icon: '👋' })
+    } catch {
+      toast.error('Could not reject invite')
+    }
+  }
+
+  const tabs = [
+    { id: 'all', label: 'All', count: notifications.length },
+    { id: 'unread', label: 'Unread', count: unreadCount },
+    { id: 'invites', label: 'Invites', count: notifications.filter((n) => n.type === 'invite').length }
+  ]
+  const [filter, setFilter] = useState('all')
+
+  const filtered =
+    filter === 'unread'
+      ? notifications.filter((n) => !n.read)
+      : filter === 'invites'
+      ? notifications.filter((n) => n.type === 'invite')
+      : notifications
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-stretch justify-end">
+      {/* backdrop */}
+      <div
+        className="absolute inset-0 bg-black/55"
+        onClick={() => navigate('/main-page')}
+      />
+
+      {/* panel */}
+      <div className={`${overlayPanel} max-w-md`}>
+        {/* header */}
+        <div className={overlayHeader}>
+          <div className="flex items-center gap-2">
+            <h1 className={overlayTitle}>Notifications</h1>
+            {unreadCount > 0 && (
+              <span className="bg-[#e11d48] text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="hidden sm:flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 transition-colors"
+              >
+                <BsCheck2All /> Mark all read
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/main-page')}
+              className={overlayCloseBtn}
+              aria-label="Close notifications"
+            >
+              <BsX className="text-xl" />
+            </button>
+          </div>
+        </div>
+
+        {/* filter tabs */}
+        <div className="flex gap-2 border-b border-[#2c333a] px-5 py-3 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setFilter(tab.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+                filter === tab.id
+                  ? 'bg-[#ff4d67] text-white'
+                  : 'bg-[#22272b] text-[#b6c2cf] hover:text-white'
+              }`}
+            >
+              {tab.label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                  filter === tab.id
+                    ? 'bg-black/15 text-white'
+                    : 'bg-[#101418] text-[#8c9bab]'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllRead}
+              className="ml-auto sm:hidden rounded-full px-3 py-1.5 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 whitespace-nowrap"
+            >
+              Read all
+            </button>
+          )}
+        </div>
+
+        {/* list */}
+        <div className="flex-1 overflow-y-auto app-scrollbar">
+          {loading ? (
+            <Skeleton />
+          ) : filtered.length === 0 ? (
+            <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
+              <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${dashboardPanelElevated}`}>
+                <BsBell className="text-2xl text-[#ff8aa0]" />
+              </div>
+              <p className="text-sm font-semibold text-white">
+                {filter === 'unread' ? 'No unread notifications' : filter === 'invites' ? 'No invites' : 'No notifications yet'}
+              </p>
+              <p className={`text-xs ${dashboardMutedColor} mt-1`}>
+                Updates will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-[#2c333a]">
+              {filtered.map((n) => (
+                <div
+                  key={n._id}
+                  onClick={() => !n.read && markRead(n._id)}
+                  className={`relative flex flex-col gap-2 px-5 py-4 group cursor-pointer transition-colors ${
+                    n.read
+                      ? 'hover:bg-[#22272b]'
+                      : 'bg-[#ff4d67]/10 hover:bg-[#ff4d67]/14'
+                  }`}
+                >
+                  {/* top row */}
+                  <div className="flex items-start gap-3">
+                    {!n.read && (
+                      <span className="absolute left-2 top-5 w-1.5 h-1.5 bg-[#ff8aa0] rounded-full" />
+                    )}
+                    <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full ${dashboardPanelElevated} flex items-center justify-center`}>
+                      {typeIcon(n.type, n.status)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs leading-relaxed ${n.read ? dashboardMutedColor : `${dashboardTextColor} font-medium`}`}>
+                        {n.message}
+                      </p>
+                      {n.project?.name && (
+                        <p className="text-[10px] text-[#ff8aa0] mt-0.5 font-medium">
+                          {n.project.name}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-[#8c9bab] mt-1 flex items-center gap-1">
+                        {!n.read && <BsDot className="text-[#ff8aa0]" />}
+                        {timeAgo(n.createdAt)}
+                      </p>
+                    </div>
+                    {/* status badge for resolved invites */}
+                    {n.type === 'invite' && n.status !== 'pending' && statusBadge(n.status)}
+                    {/* delete button */}
+                    {!(n.type === 'invite' && n.status === 'pending') && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteNotif(n._id) }}
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-[#8c9bab] hover:text-[#fb7185] transition-all p-1 rounded shrink-0 hover:bg-[#101418]"
+                        aria-label="Delete notification"
+                      >
+                        <BsTrash className="text-xs" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* invite action buttons */}
+                  {n.type === 'invite' && n.status === 'pending' && (
+                    <div className="flex gap-2 pl-11">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleAccept(n._id) }}
+                        className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReject(n._id) }}
+                        className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#22272b] hover:bg-[#2c333a] text-[#b6c2cf] border border-white/[0.06] transition-colors"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Notifications

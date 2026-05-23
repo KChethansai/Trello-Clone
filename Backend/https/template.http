@@ -1,0 +1,41 @@
+
+### VARIABLES
+
+@baseUrl=http://localhost:4325
+@templateId=69fc5dd3d806d4801f79ca39
+
+
+
+### CREATE TEMPLATE
+
+POST {{baseUrl}}/api/templates
+Content-Type: application/json
+
+{
+  "category": "Project Management",
+  "title": "Kanban Board",
+  "creatorName": "Nithish",
+  "description": "Simple kanban workflow template",
+  "images": [
+    "https://example.com/image1.png",
+    "https://example.com/image2.png"
+  ]
+}
+
+
+
+### GET ALL TEMPLATES
+
+GET {{baseUrl}}/api/templates
+
+
+
+### GET SINGLE TEMPLATE
+
+GET {{baseUrl}}/api/templates/{{templateId}}
+
+
+
+### TOGGLE FAVOURITE
+
+PATCH {{baseUrl}}/api/templates/{{templateId}}/favourite

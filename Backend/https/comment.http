@@ -1,0 +1,2 @@
+//to register
+POST http://localhost:/user-api/users

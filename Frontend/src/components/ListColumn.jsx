@@ -1,0 +1,370 @@
+import { memo, useState, useEffect, useRef } from 'react'
+import {
+  BsPlusLg,
+  BsX,
+  BsThreeDots,
+  BsChevronDown,
+  BsChevronUp
+} from 'react-icons/bs'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import toast from 'react-hot-toast'
+import {
+  addListPanel,
+  listColumnBase,
+  listColumnDefault,
+  listDropZone,
+  listDropZoneOver,
+  listHeader,
+  listIconButton,
+  listMenu,
+  listMenuDanger,
+  listMenuItem,
+  listTitle,
+  listTitleInput,
+  projectInput,
+  projectMutedIconBtn,
+  projectPrimarySmallBtn,
+  dashboardMutedColor,
+  dashboardSurfaceColor
+} from '../Styles/common'
+import { STATUS_LABELS, getStatusByText } from '../utils/projectUtils'
+import { SortableCard, AddCardForm } from './Card'
+
+export const ListColumn = memo(function ListColumn({
+  list,
+  cards,
+  onAddCard,
+  onDeleteCard,
+  onDeleteList,
+  onOpenCard,
+  onQuickUpdate,
+  onUpdateList,
+  onStatusList,
+  isEditable
+}) {
+  const [showAddCard, setShowAddCard] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleVal, setTitleVal] = useState(list.title)
+  const [savingTitle, setSavingTitle] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const menuRef = useRef(null)
+  const menuButtonRef = useRef(null)
+  const listStatus = getStatusByText(list.title)
+
+  useEffect(() => {
+    setTitleVal(list.title)
+  }, [list.title])
+
+  useEffect(() => {
+    if (!showMenu) return
+
+    const handleClickOutside = (event) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target) &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(event.target)
+      ) {
+        setShowMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setListNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({
+    id: `list:${list._id}`,
+    data: { type: 'list', listId: list._id },
+    disabled: !isEditable
+  })
+
+  const { setNodeRef, isOver } = useDroppable({
+    id: `list-drop:${list._id}`,
+    data: { type: 'list-drop', listId: list._id }
+  })
+
+  const cardIds = (cards || []).map((c) => `card:${c._id}`)
+  const saveTitle = async () => {
+    const nextTitle = titleVal.trim()
+    if (!nextTitle || nextTitle === list.title) {
+      setTitleVal(list.title)
+      setEditingTitle(false)
+      return
+    }
+    setSavingTitle(true)
+    const updated = await onUpdateList(list._id, { title: nextTitle })
+    setSavingTitle(false)
+    if (!updated) {
+      setTitleVal(list.title)
+      toast.error('Could not update list title')
+      return
+    }
+    setEditingTitle(false)
+  }
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || 'transform 180ms ease, opacity 160ms ease',
+    opacity: isDragging ? 0.5 : 1
+  }
+
+  return (
+    <div
+      ref={setListNodeRef}
+      style={style}
+      className={`${listColumnBase} ${
+        listStatus?.list || listColumnDefault
+      } ${collapsed ? 'max-h-14 overflow-hidden' : ''}`}
+    >
+      {/* list header */}
+      <div
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        className={listHeader}
+      >
+        {editingTitle && isEditable ? (
+          <input
+            autoFocus
+            value={titleVal}
+            onChange={(e) => setTitleVal(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveTitle()
+              if (e.key === 'Escape') {
+                setTitleVal(list.title)
+                setEditingTitle(false)
+              }
+            }}
+            className={listTitleInput}
+          />
+        ) : (
+          <h3
+            className={`${listTitle} ${!isEditable ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+            onClick={() => isEditable && setEditingTitle(true)}
+          >
+            {list.title}
+          </h3>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          <span
+            className={`flex h-6 min-w-6 items-center justify-center rounded-full ${dashboardSurfaceColor} px-2 text-xs font-medium ${dashboardMutedColor} ${
+              savingTitle ? 'animate-pulse' : ''
+            }`}
+          >
+            {(cards || []).length}
+          </span>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCollapsed((value) => !value)
+            }}
+            className={listIconButton}
+            aria-label={collapsed ? 'Expand list' : 'Collapse list'}
+          >
+            {collapsed ? <BsChevronDown /> : <BsChevronUp />}
+          </button>
+
+          <div className="relative">
+            <button
+              ref={menuButtonRef}
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu((v) => !v)
+              }}
+              className={listIconButton}
+            >
+              <BsThreeDots />
+            </button>
+
+            {showMenu && (
+              <div
+                ref={menuRef}
+                className={listMenu}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {!isEditable ? (
+                  <div className="p-3 text-sm text-[#d1d9e0]">
+                    This board is view-only. List actions are disabled.
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowAddCard(true)
+                        setShowMenu(false)
+                      }}
+                      className={listMenuItem}
+                    >
+                      Add card
+                    </button>
+                    <div className={`my-1 border-t border-[#27272a]`} />
+                    {STATUS_LABELS.map((status) => (
+                      <button
+                        key={status.id}
+                        onClick={() => {
+                          onStatusList(list, status)
+                          setShowMenu(false)
+                        }}
+                        className={`${listMenuItem} flex items-center gap-2`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${status.badge}`}
+                        />
+                        Set as {status.title}
+                      </button>
+                    ))}
+                    {confirmDelete ? (
+                      <div className="px-3 py-2">
+                        <p className={`mb-2 text-xs ${dashboardMutedColor}`}>
+                          Are you sure? This deletes all cards.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              onDeleteList(list._id)
+                              setShowMenu(false)
+                              setConfirmDelete(false)
+                            }}
+                            className={listMenuDanger}
+                          >
+                            Yes, delete
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(false)}
+                            className={listMenuItem}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        className={listMenuDanger}
+                      >
+                        Delete list
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* cards drop zone */}
+      {!collapsed && (
+        <div
+          ref={setNodeRef}
+          className={`${listDropZone} ${isOver ? listDropZoneOver : ''}`}
+        >
+          <SortableContext
+            items={cardIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {(cards || []).length === 0 && !showAddCard && (
+              <button
+                type="button"
+                onClick={() => isEditable && setShowAddCard(true)}
+                className={`rounded-lg border border-dashed ${dashboardMutedColor} px-3 py-6 text-center text-xs text-[#a1a1aa]`}
+              >
+                No cards yet
+              </button>
+            )}
+            {(cards || []).map((card) => (
+              <SortableCard
+                key={card._id}
+                card={card}
+                listId={list._id}
+                onDelete={onDeleteCard}
+                onOpen={onOpenCard}
+                onQuickUpdate={onQuickUpdate}
+                isEditable={isEditable}
+              />
+            ))}
+          </SortableContext>
+
+          {showAddCard && isEditable && (
+            <AddCardForm
+              listId={list._id}
+              onAdd={onAddCard}
+              onCancel={() => setShowAddCard(false)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* add card button, only shown when editable */}
+      {isEditable && !showAddCard && !collapsed && (
+        <button
+          onClick={() => setShowAddCard(true)}
+          className={`flex items-center gap-1.5 mx-2 mb-2 px-2 py-1.5 rounded-lg text-xs ${dashboardMutedColor} hover:bg-[#18181b] hover:text-white transition-colors`}
+        >
+          <BsPlusLg className="text-xs" /> Add a card
+        </button>
+      )}
+    </div>
+  )
+})
+
+export function AddListForm({ onAdd, onCancel }) {
+  const [title, setTitle] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleAdd = async () => {
+    if (!title.trim()) return
+    setSubmitting(true)
+    await onAdd(title.trim())
+    setSubmitting(false)
+    setTitle('')
+  }
+
+  return (
+    <div className={addListPanel}>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleAdd()
+          if (e.key === 'Escape') onCancel()
+        }}
+        placeholder="Enter list title..."
+        autoFocus
+        className={`${projectInput} mb-2`}
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleAdd}
+          disabled={submitting || !title.trim()}
+          className={projectPrimarySmallBtn}
+        >
+          {submitting ? 'Adding...' : 'Add list'}
+        </button>
+        <button onClick={onCancel} className={projectMutedIconBtn}>
+          <BsX className="text-lg" />
+        </button>
+      </div>
+    </div>
+  )
+}
