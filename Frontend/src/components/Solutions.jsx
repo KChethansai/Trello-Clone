@@ -5,7 +5,7 @@ const solutionsCards = [
   {
     title: 'Engineering',
     desc: 'Ship more code and enable your team to be more agile with Kanvora for developers.',
-    img: 'https://images.ctfassets.net/rz1oowkt5gyp/43aZ773YpXmOpe2397gKqI/7650df47790b9fbc743e49e3fa6cf27b/Trello_Kanban_Board.png?w=740&fm=webp',
+    img: 'https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTNxm_iQpU_G7uqkgP1hbC525fz9opnrcEX1V2bnMMxDIr6-sAG',
     path: '/engineering'
   },
   {
@@ -23,7 +23,7 @@ const solutionsCards = [
   {
     title: 'Team Management',
     desc: 'From project coordination to your next virtual party, level up team productivity and management practices with Kanvora.',
-    img: 'https://images.ctfassets.net/rz1oowkt5gyp/4vK9L1yVpe00r940X3a31c/64deca2bbaeb9d4de1e3a6efdf19db0b/Collaboration.png?w=740&fm=webp',
+    img: 'https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQvf8IUxeafOwLFfOyLEDYuPQMPZcG5qQE78c5oh2KFT2Mr2Zch',
     path: '/team-management'
   }
 ]
