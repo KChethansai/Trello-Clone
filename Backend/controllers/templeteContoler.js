@@ -1,6 +1,17 @@
-// templeteContoler controller: request handlers and domain-side persistence logic.
 import Template from "../models/template.js";
 import { projectModel } from "../models/ProjectModel.js";
+import { WorkspaceModel } from "../models/Workspace.js";
+
+const checkWsManager = async (projectRef, userId) => {
+  if (!projectRef) return false;
+  const project = await projectModel.findById(projectRef);
+  if (!project || !project.workspace) return false;
+  const workspace = await WorkspaceModel.findById(project.workspace);
+  if (!workspace) return false;
+  if (workspace.owner?.toString() === userId) return true;
+  const member = workspace.members?.find((m) => m.user?.toString() === userId);
+  return ['ADMIN', 'MANAGER'].includes(member?.role);
+};
 
 // create template
 export const createTemplate = async (req, res) => {
@@ -289,10 +300,11 @@ export const togglePublished = async (req, res) => {
       return res.status(404).json({ message: "Template not found" });
     }
 
-    if (
-      template.creatorId.toString() !== req.user.id.toString() &&
-      !['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role)
-    ) {
+    const isOwner = template.creatorId.toString() === req.user.id.toString();
+    const isWsManager = await checkWsManager(template.projectRef || template._id, req.user.id);
+    const hasGlobalRole = ['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role);
+
+    if (!isOwner && !isWsManager && !hasGlobalRole) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -328,7 +340,9 @@ export const updateTemplate = async (req, res) => {
     }
 
     const isOwner = String(template.creatorId) === String(req.user.id);
+    const isWsManager = await checkWsManager(template.projectRef || template._id, req.user.id);
     const canEdit = isOwner || 
+                   isWsManager ||
                    ['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role) || 
                    (!template.isPublished && template.isEditable);
 
@@ -380,8 +394,9 @@ export const deleteTemplate = async (req, res) => {
     if (template) {
 
       const isOwner = String(template.creatorId) === String(req.user.id);
+      const isWsManager = await checkWsManager(template.projectRef || template._id, req.user.id);
 
-      if (!isOwner && !['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role)) {
+      if (!isOwner && !isWsManager && !['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role)) {
         return res.status(403).json({
           message: "You do not have permission to delete this template",
         });
@@ -401,8 +416,9 @@ export const deleteTemplate = async (req, res) => {
     }
 
     const isOwner = String(project.creatorId) === String(req.user.id);
+    const isWsManager = await checkWsManager(project._id, req.user.id);
 
-    if (!isOwner && !['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role)) {
+    if (!isOwner && !isWsManager && !['ADMIN', 'MANAGER', 'MEMBER'].includes(req.user.role)) {
       return res.status(403).json({
         message: "You do not have permission to remove this template",
       });

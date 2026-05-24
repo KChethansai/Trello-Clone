@@ -99,7 +99,9 @@ export const getWorkspaces = async (req, res, next) => {
     const userId = req.user.id
     const workspaces = await WorkspaceModel.find({
       $or: [{ 'members.user': userId }, { owner: userId }]
-    }).populate('owner', 'name email')
+    })
+      .populate('owner', 'name email')
+      .populate('members.user', 'name email profilePic')
 
     res.status(200).json({ message: 'Workspaces fetched', payload: workspaces })
   } catch (err) {
@@ -162,10 +164,15 @@ export const updateWorkspace = async (req, res, next) => {
 
     if (req.body.name) workspace.name = req.body.name.trim()
     if (req.body.members) {
-      workspace.members = req.body.members.map((m) => ({
-        user: m.user?._id || m.user,
-        role: m.role || 'MEMBER'
-      }))
+      workspace.members = req.body.members.map((m) => {
+        const targetUserId = String(m.user?._id || m.user)
+        const isOwnerUser = String(workspace.owner) === targetUserId
+        const newRole = (m.role || 'MEMBER').toUpperCase()
+        return {
+          user: targetUserId,
+          role: newRole === 'ADMIN' && !isOwnerUser ? 'MEMBER' : newRole
+        }
+      })
     }
     const updated = await workspace.save()
 
@@ -201,6 +208,10 @@ export const deleteWorkspace = async (req, res, next) => {
 export const addMember = async (req, res, next) => {
   try {
     const { userId, email, role } = req.body
+
+    if (role?.toString().trim().toUpperCase() === 'ADMIN') {
+      return res.status(400).json({ message: 'Collaborators cannot be admins' })
+    }
 
     const workspace = await WorkspaceModel.findById(req.params.id)
     if (!workspace)
@@ -337,10 +348,11 @@ export const removeMember = async (req, res, next) => {
     )
     const isOwner = workspace.owner.toString() === currentUserId
 
-    //allow: owner, admin, or self-removal
+    //allow: owner, admin, manager, or self-removal
     if (
       !isOwner &&
       currentMember?.role !== 'ADMIN' &&
+      currentMember?.role !== 'MANAGER' &&
       currentUserId !== userId
     ) {
       return res.status(403).json({ message: 'Not allowed' })
@@ -403,7 +415,10 @@ export const acceptInvitation = async (req, res, next) => {
     }
 
     // add as viewer by default (or honor invitation role)
-    const role = (invitation.role || 'Member').toString().toUpperCase()
+    let role = (invitation.role || 'Member').toString().toUpperCase()
+    if (role === 'ADMIN') {
+      role = 'MEMBER'
+    }
     workspace.members.push({ user: user._id.toString(), role })
     await workspace.save()
 

@@ -16,16 +16,34 @@ export const projectsApp = exp.Router()
 const auth = verifyRolesToken('MEMBER', 'ADMIN', 'MANAGER', 'VIEWER')
 const write = verifyRolesToken('MEMBER', 'ADMIN', 'MANAGER', 'VIEWER')
 
-const canAccessProject = (project, userId) =>
-  project &&
-  project.status !== false &&
-  (project.isPublished ||
+const getWorkspaceRole = async (workspaceId, userId) => {
+  if (!workspaceId) return null
+  const workspace = await WorkspaceModel.findById(workspaceId)
+  if (!workspace) return null
+  if (workspace.owner?.toString() === userId) return 'ADMIN'
+  const member = workspace.members?.find((m) => m.user?.toString() === userId)
+  return member?.role || null
+}
+
+const canAccessProject = async (project, userId) => {
+  if (!project || project.status === false) return false
+  if (project.isPublished) return true
+  if (
     project.creatorId?._id?.toString() === userId ||
-    project.creatorId?.toString() === userId ||
+    project.creatorId?.toString() === userId
+  )
+    return true
+  if (
     project.members?.some(
       (member) =>
         member?._id?.toString() === userId || member?.toString() === userId
-    ))
+    )
+  )
+    return true
+
+  const wsRole = await getWorkspaceRole(project.workspace, userId)
+  return wsRole !== null
+}
 
 const canAccessWorkspace = (workspace, userId) =>
   workspace &&
@@ -34,28 +52,42 @@ const canAccessWorkspace = (workspace, userId) =>
 
 const findAccessibleProject = async (projectId, userId) => {
   const project = await projectModel.findById(projectId)
-  return canAccessProject(project, userId) ? project : null
+  return (await canAccessProject(project, userId)) ? project : null
 }
 
-const canEditProject = (project, userId) =>
-  project &&
-  (project.creatorId?._id?.toString() === userId ||
-    project.creatorId?.toString() === userId ||
-    (project.isPublished && project.isEditable))
+const canEditProject = async (project, userId) => {
+  if (!project) return false
+  if (
+    project.creatorId?._id?.toString() === userId ||
+    project.creatorId?.toString() === userId
+  )
+    return true
+  if (project.isPublished && project.isEditable) return true
 
-const canManageProject = (project, userId) =>
-  project &&
-  (project.creatorId?._id?.toString() === userId ||
-    project.creatorId?.toString() === userId)
+  const wsRole = await getWorkspaceRole(project.workspace, userId)
+  return ['ADMIN', 'MANAGER', 'MEMBER'].includes(wsRole)
+}
+
+const canManageProject = async (project, userId) => {
+  if (!project) return false
+  if (
+    project.creatorId?._id?.toString() === userId ||
+    project.creatorId?.toString() === userId
+  )
+    return true
+
+  const wsRole = await getWorkspaceRole(project.workspace, userId)
+  return ['ADMIN', 'MANAGER'].includes(wsRole)
+}
 
 const findEditableProject = async (projectId, userId) => {
   const project = await projectModel.findById(projectId)
-  return canEditProject(project, userId) ? project : null
+  return (await canEditProject(project, userId)) ? project : null
 }
 
 const findManageableProject = async (projectId, userId) => {
   const project = await projectModel.findById(projectId)
-  return canManageProject(project, userId) ? project : null
+  return (await canManageProject(project, userId)) ? project : null
 }
 
 const findAccessibleList = async (listId, userId) => {
@@ -266,7 +298,7 @@ projectsApp.get('/projects/:id', auth, async (req, res, next) => {
       .populate('members', 'name email')
 
     if (!project) return res.status(404).json({ message: 'Project not found' })
-    if (!canAccessProject(project, req.user.id)) {
+    if (!(await canAccessProject(project, req.user.id))) {
       return res.status(403).json({ message: 'Access denied' })
     }
 

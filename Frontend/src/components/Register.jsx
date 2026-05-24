@@ -1,4 +1,4 @@
-﻿// Register component: renders a focused piece of the Kanvora UI.
+// Register component: renders a focused piece of the Kanvora UI.
 import { useForm } from 'react-hook-form'
 import { useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -101,7 +101,8 @@ function Register() {
       const payload = {
         name: data.name,
         email: data.email,
-        password: data.password
+        password: data.password,
+        role: data.role || 'MEMBER'
       }
       const res = await axios.post(`${API_BASE_URL}/auth/register`, payload, {
         withCredentials: true
@@ -193,6 +194,24 @@ function Register() {
           />
           {errors.confirmPassword && (
             <p className={errorClass}>{errors.confirmPassword.message}</p>
+          )}
+        </div>
+
+        {/* role selection */}
+        <div className="flex flex-col gap-1">
+          <label className={`text-xs font-medium ${mutedText}`}>
+            I want to register as a
+          </label>
+          <select
+            className={loginInput}
+            {...register('role', { required: 'Role is required' })}
+            defaultValue="MEMBER"
+          >
+            <option value="MEMBER">User (Collaborator)</option>
+            <option value="MANAGER">Manager</option>
+          </select>
+          {errors.role && (
+            <p className={errorClass}>{errors.role.message}</p>
           )}
         </div>
 

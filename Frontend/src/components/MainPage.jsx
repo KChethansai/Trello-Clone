@@ -18,7 +18,6 @@ import Navbar from './Navbar'
 import { Outlet } from 'react-router-dom'
 import { useProjectStore } from '../store/projectStore'
 import { useWorkspaceStore } from '../store/workspaceStore'
-import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 const viewOptions = [
   { id: 'kanban', label: 'Kanban', icon: <BsGrid3X3Gap /> },
@@ -34,19 +33,22 @@ function WorkspaceDashboard({ viewMode }) {
     useProjectStore()
   const { activeWorkspace, analytics, fetchWorkspaceAnalytics } =
     useWorkspaceStore()
-  const [search, setSearch] = useState(activeFilter.search)
-  const debouncedSearch = useDebouncedValue(search, 250)
   const [currentDate, setCurrentDate] = useState(() => new Date())
 
   useEffect(() => {
-    setActiveFilter({ search: debouncedSearch })
-  }, [debouncedSearch, setActiveFilter])
-
-  useEffect(() => {
     if (activeWorkspace?._id && (viewMode === 'analytics' || viewMode === 'activity')) {
-      fetchWorkspaceAnalytics(activeWorkspace._id)
+      fetchWorkspaceAnalytics(activeWorkspace._id, {
+        search: activeFilter.search,
+        status: activeFilter.status
+      })
     }
-  }, [activeWorkspace?._id, fetchWorkspaceAnalytics, viewMode])
+  }, [
+    activeWorkspace?._id,
+    fetchWorkspaceAnalytics,
+    viewMode,
+    activeFilter.search,
+    activeFilter.status
+  ])
 
   const filteredProjects = useMemo(
     () =>
@@ -70,12 +72,6 @@ function WorkspaceDashboard({ viewMode }) {
     <div className="flex-1 overflow-y-auto premium-app-bg px-4 py-5 text-[var(--dash-text-main)] app-scrollbar sm:px-6 lg:px-8">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Filter projects..."
-            className="h-10 rounded-lg border border-white/[0.08] bg-[#0a0a0a] px-3 text-sm text-white outline-none transition focus:border-[#ff4d67] focus:ring-2 focus:ring-[#ff4d67]/20"
-          />
           <select
             value={activeFilter.status}
             onChange={(event) =>

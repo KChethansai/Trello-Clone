@@ -1,6 +1,8 @@
 // Navbar component: renders a focused piece of the Kanvora UI.
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 import kanvoraLogo from '../assets/kanvora-logo.png'
 import {
   BsBell,
@@ -183,7 +185,7 @@ function UserMenu({ onClose }) {
       </button>
       <button
         onClick={() => {
-          navigate('/workspaces/settings')
+          navigate('/workspaces/settings/profile')
           onClose()
         }}
         className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-sm ${dashboardTextColor} hover:bg-[#27272a] hover:text-white transition-colors`}
@@ -209,13 +211,77 @@ function Navbar({ onToggleSidebar }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { currentUser } = useAuth()
-  const { viewMode, setViewMode } = useProjectStore()
+  const { viewMode, setViewMode, activeFilter, setActiveFilter } = useProjectStore()
+  const { workspaces, setActiveWorkspace } = useWorkspaceStore()
   const [searchFocused, setSearchFocused] = useState(false)
-  const [searchVal, setSearchVal] = useState('')
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFeatures, setShowFeatures] = useState(false)
   const { unreadCount, fetchNotifications, bindUserRoom } = useNotificationStore()
   const showViewSwitcher = location.pathname === '/main-page'
+
+  const [templates, setTemplates] = useState([])
+  const [users, setUsers] = useState([])
+  const [searchingUsers, setSearchingUsers] = useState(false)
+
+  // Fetch templates on mount
+  useEffect(() => {
+    if (currentUser) {
+      axios.get(`${API_BASE_URL}/api/templates`, { withCredentials: true })
+        .then((res) => setTemplates(res.data.payload || []))
+        .catch(() => {})
+    }
+  }, [currentUser])
+
+  // Debounced search for users
+  useEffect(() => {
+    const query = (activeFilter?.search || '').trim()
+    if (!query) {
+      setUsers([])
+      return
+    }
+
+    setSearchingUsers(true)
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/users/search-all`, {
+          params: { q: query },
+          withCredentials: true
+        })
+        setUsers(res.data.payload || [])
+      } catch (err) {
+        console.error('Error searching users:', err)
+        setUsers([])
+      } finally {
+        setSearchingUsers(false)
+      }
+    }, 250) // 250ms debounce
+
+    return () => clearTimeout(delayDebounce)
+  }, [activeFilter?.search])
+
+  const filteredWorkspaces = useMemo(() => {
+    const query = (activeFilter?.search || '').trim().toLowerCase()
+    if (!query) return []
+    return workspaces.filter((ws) =>
+      ws.name?.toLowerCase().includes(query)
+    )
+  }, [workspaces, activeFilter?.search])
+
+  const filteredTemplates = useMemo(() => {
+    const query = (activeFilter?.search || '').trim().toLowerCase()
+    if (!query) return []
+    return templates.filter((t) => {
+      const isPersonal =
+        t.creatorId === currentUser?._id ||
+        t.creatorId?._id === currentUser?._id
+      const isPublished = t.isPublished === true
+      if (!isPersonal && !isPublished) return false
+
+      const matchTitle = t.title?.toLowerCase().includes(query)
+      const matchDesc = t.description?.toLowerCase().includes(query)
+      return matchTitle || matchDesc
+    })
+  }, [templates, activeFilter?.search, currentUser?._id])
 
   // join personal socket room + initial fetch
   useEffect(() => {
@@ -402,15 +468,163 @@ function Navbar({ onToggleSidebar }) {
           />
           <input
             type="text"
-            placeholder="Search"
-            value={searchVal}
-            onChange={(e) => setSearchVal(e.target.value)}
+            placeholder="Search..."
+            value={activeFilter?.search || ''}
+            onChange={(e) => setActiveFilter({ search: e.target.value })}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             className={`w-full ${dashboardPanelElevated} border ${dashboardBorderColor} rounded-lg h-8 pl-8 pr-3 text-sm ${dashboardTextColor} placeholder:text-[#8c9bab] focus:outline-none focus:border-[#ff4d67] focus:bg-[#050505] ${dashboardFocusRing} transition-all duration-200 ${
               searchFocused ? 'md:max-w-[20rem]' : ''
             }`}
           />
+
+          {/* Search Results Dropdown */}
+          {searchFocused && (activeFilter?.search || '').trim().length > 0 && (
+            <div
+              className="absolute top-full right-0 z-50 mt-2 rounded-xl border border-white/[0.08] bg-[#0c0c0e]/95 p-2.5 shadow-2xl backdrop-blur-2xl max-h-[24rem] overflow-y-auto app-scrollbar w-[16rem] sm:w-[20rem] lg:w-[24rem]"
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {/* Workspaces Section */}
+              <div className="mb-3">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#a1a1aa]">
+                  Workspaces
+                </div>
+                {filteredWorkspaces.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-[#71717a] italic">
+                    No matching workspaces
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5 mt-1">
+                    {filteredWorkspaces.map((ws) => (
+                      <button
+                        key={ws._id}
+                        type="button"
+                        onClick={() => {
+                          setActiveWorkspace(ws)
+                          setActiveFilter({ search: '' })
+                          if (!location.pathname.startsWith('/workspaces')) {
+                            navigate('/main-page')
+                          }
+                          toast.success(`Switched to workspace: ${ws.name}`)
+                        }}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs font-medium text-white hover:bg-white/[0.06] transition-colors w-full"
+                      >
+                        <span className="w-5 h-5 rounded bg-linear-to-br from-[#ff4d67] to-[#b91c3a] flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                          {ws.name?.slice(0, 1).toUpperCase() || 'W'}
+                        </span>
+                        <span className="truncate flex-1">{ws.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Templates Section */}
+              <div className="mb-3">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#a1a1aa]">
+                  Templates
+                </div>
+                {filteredTemplates.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-[#71717a] italic">
+                    No matching templates
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5 mt-1">
+                    {filteredTemplates.map((t) => {
+                      const isPersonal =
+                        t.creatorId === currentUser?._id ||
+                        t.creatorId?._id === currentUser?._id
+                      const isPublished = t.isPublished === true
+                      return (
+                        <button
+                          key={t._id}
+                          type="button"
+                          onClick={() => {
+                            setActiveFilter({ search: '' })
+                            navigate(`/templates?selected=${t._id}`)
+                          }}
+                          className="flex flex-col gap-0.5 px-2 py-1.5 rounded-lg text-left hover:bg-white/[0.06] transition-colors w-full"
+                        >
+                          <div className="flex items-center justify-between gap-2 w-full">
+                            <span className="text-xs font-semibold text-white truncate flex-1">
+                              {t.title}
+                            </span>
+                            <div className="flex gap-1 shrink-0">
+                              {isPersonal && (
+                                <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1 py-0.5 rounded font-medium">
+                                  Personal
+                                </span>
+                              )}
+                              {isPublished && (
+                                <span className="text-[8px] bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded font-medium">
+                                  Published
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {t.description && (
+                            <span className="text-[10px] text-[#71717a] truncate">
+                              {t.description}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Users Section */}
+              <div>
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#a1a1aa] flex items-center justify-between">
+                  <span>Users</span>
+                  {searchingUsers && (
+                    <span className="text-[9px] text-[#ff4d67] animate-pulse">
+                      Searching...
+                    </span>
+                  )}
+                </div>
+                {users.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-[#71717a] italic">
+                    {searchingUsers ? 'Searching users...' : 'No matching users'}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5 mt-1">
+                    {users.map((user) => (
+                      <button
+                        key={user._id}
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(user.email)
+                          toast.success(`Copied email to clipboard: ${user.email}`)
+                        }}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs font-medium text-white hover:bg-white/[0.06] transition-colors w-full"
+                        title="Click to copy email"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-[#ff4d67]/20 text-[#ff8aa0] flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {user.profilePic ? (
+                            <img
+                              src={user.profilePic}
+                              alt="avatar"
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            getInitials(user.name)
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-white truncate">{user.name}</div>
+                          <div className="text-[10px] text-[#71717a] truncate">
+                            {user.email}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

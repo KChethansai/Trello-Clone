@@ -175,8 +175,25 @@ workspaceApp.get('/workspaces/:id/analytics', auth, async (req, res, next) => {
     if (!canAccessWorkspaceDoc(workspace, req.user.id)) {
       return res.status(403).json({ message: 'Workspace access denied' })
     }
+    const { q, status } = req.query
+    const projectQuery = { workspace: req.params.id, status: true }
+
+    if (q && q.trim()) {
+      const searchRegex = new RegExp(q.trim(), 'i')
+      projectQuery.$or = [
+        { title: searchRegex },
+        { name: searchRegex }
+      ]
+    }
+
+    if (status === 'ACTIVE') {
+      projectQuery.archivedAt = null
+    } else if (status === 'ARCHIVED') {
+      projectQuery.archivedAt = { $ne: null }
+    }
+
     const projects = await projectModel
-      .find({ workspace: req.params.id, status: true })
+      .find(projectQuery)
       .select('_id title name archivedAt members updatedAt')
       .lean()
     const projectIds = projects.map((project) => project._id)
@@ -289,6 +306,29 @@ workspaceApp.get('/users/search', auth, async (req, res, next) => {
     }).select('_id name email profilePic')
     if (!user) return res.status(404).json({ message: 'User not found' })
     res.status(200).json({ message: 'User found', payload: user })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// search users globally by name or email (partial matching)
+workspaceApp.get('/users/search-all', auth, async (req, res, next) => {
+  try {
+    const { q } = req.query
+    if (!q || !q.trim()) {
+      return res.status(200).json({ message: 'Search completed', payload: [] })
+    }
+    const regex = new RegExp(q.trim(), 'i')
+    const users = await UserModel.find({
+      $or: [
+        { name: regex },
+        { email: regex }
+      ]
+    })
+      .select('_id name email profilePic')
+      .limit(10)
+      .lean()
+    res.status(200).json({ message: 'Users found', payload: users })
   } catch (err) {
     next(err)
   }

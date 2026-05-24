@@ -2,6 +2,7 @@
 import compression from 'compression'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { env } from './env.js'
 
 export const securityMiddleware = [
   helmet({
@@ -12,7 +13,7 @@ export const securityMiddleware = [
   compression(),
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 300,
+    limit: env.nodeEnv === 'production' ? 300 : 10000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Too many requests, please try again later' }

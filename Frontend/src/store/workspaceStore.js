@@ -1,4 +1,4 @@
-﻿// workspaceStore store: centralizes client state and API calls for this domain.
+// workspaceStore store: centralizes client state and API calls for this domain.
 import { create } from 'zustand'
 import axios from 'axios'
 import { API_BASE_URL } from '../config/api'
@@ -165,10 +165,16 @@ export const useWorkspaceStore = create((set, get) => ({
     }
   },
 
-  fetchWorkspaceAnalytics: async (workspaceId) => {
+  fetchWorkspaceAnalytics: async (workspaceId, filters = {}) => {
     try {
+      const { search = '', status = 'ALL' } = filters
+      const params = new URLSearchParams()
+      if (search.trim()) params.append('q', search.trim())
+      if (status) params.append('status', status)
+
+      const queryString = params.toString() ? `?${params.toString()}` : ''
       const res = await axios.get(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}/analytics`,
+        `${API_BASE_URL}/api/workspaces/${workspaceId}/analytics${queryString}`,
         { withCredentials: true }
       )
       set({ analytics: res.data.payload })

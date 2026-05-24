@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { BsSearch, BsX, BsList } from 'react-icons/bs'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { BsX, BsList } from 'react-icons/bs'
 
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
 import { API_BASE_URL } from '../config/api'
 import { useAuth } from '../store/authStore'
+import { useProjectStore } from '../store/projectStore'
 import Navbar from './Navbar'
 import {
   dashboardBgColor,
@@ -37,10 +38,10 @@ const sideCategories = [
 
 function Templates() {
   const { currentUser } = useAuth()
+  const { activeFilter } = useProjectStore()
 
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [editTarget, setEditTarget] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
@@ -64,6 +65,19 @@ function Templates() {
   useEffect(() => {
     fetchTemplates()
   }, [])
+
+  const location = useLocation()
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const templateId = params.get('selected')
+    if (templateId && templates.length > 0) {
+      const found = templates.find((t) => t._id === templateId)
+      if (found) {
+        setSelectedTemplate(found)
+      }
+    }
+  }, [location.search, templates])
 
   //toggle favourite - works for both template and project types
   const toggleFavourite = async (id) => {
@@ -141,9 +155,9 @@ function Templates() {
           : templateCategory === selectedCategory
 
     const matchSearch =
-      !search ||
-      t.title?.toLowerCase().includes(search.toLowerCase()) ||
-      t.description?.toLowerCase().includes(search.toLowerCase())
+      !activeFilter.search ||
+      t.title?.toLowerCase().includes(activeFilter.search.toLowerCase()) ||
+      t.description?.toLowerCase().includes(activeFilter.search.toLowerCase())
 
     return matchCategory && matchSearch
   })
@@ -235,17 +249,7 @@ function Templates() {
                 Discover reusable workflows and published project boards.
               </p>
             </div>
-            <div className="relative w-full max-w-sm">
-              <BsSearch
-                className={`absolute left-3 top-1/2 -translate-y-1/2 ${dashboardMutedColor}`}
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search templates..."
-                className={`${fieldBase} pl-10`}
-              />
-            </div>
+            {/* Search is handled globally in the Navbar. */}
           </div>
 
           {loading ? (

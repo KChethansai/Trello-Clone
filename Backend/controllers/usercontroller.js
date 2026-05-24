@@ -10,7 +10,7 @@ const { hash, compare } = bcrypt
 //register user
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body
+    const { name, email, password, role } = req.body
     if (!name?.trim() || !email?.trim() || !password) {
       return res
         .status(400)
@@ -27,10 +27,16 @@ export const registerUser = async (req, res, next) => {
     if (exists) {
       return res.status(409).json({ message: 'Email already registered' })
     }
+
+    // Role can only be MANAGER or MEMBER (User)
+    const allowedSignupRoles = ['MANAGER', 'MEMBER']
+    const finalRole = allowedSignupRoles.includes(role?.toUpperCase()) ? role.toUpperCase() : 'MEMBER'
+
     const userDoc = new UserModel({
       name: name.trim(),
       email: normalizedEmail,
-      password: await hash(password, 11)
+      password: await hash(password, 11),
+      role: finalRole
     })
     await userDoc.save()
     return res.status(201).json({ message: 'User Created' })
@@ -75,6 +81,9 @@ export const login = async (req, res, next) => {
 //change password
 export const changepassword = async (req, res, next) => {
   try {
+    if (req.user?.role === 'ADMIN') {
+      return res.status(403).json({ message: 'Admins cannot modify users directly' })
+    }
     const { oldPassword, newPassword } = req.body
     if (!oldPassword || !newPassword) {
       return res.status(400).json({ message: 'All fields are required' })
@@ -104,6 +113,9 @@ export const changepassword = async (req, res, next) => {
 //update profile - supports name, bio, username
 export const updateProfile = async (req, res, next) => {
   try {
+    if (req.user?.role === 'ADMIN') {
+      return res.status(403).json({ message: 'Admins cannot modify users directly' })
+    }
     const { name, bio, username } = req.body
     const updatedUser = await UserModel.findByIdAndUpdate(
       req.user.id,

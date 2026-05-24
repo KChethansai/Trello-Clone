@@ -1,5 +1,5 @@
 // Sidebar component: renders a focused piece of the Kanvora UI.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BsLayoutWtf,
@@ -39,6 +39,14 @@ function Sidebar({ open = true, onClose }) {
     createWorkspace,
     setActiveWorkspace
   } = useWorkspaceStore()
+
+  const sidebarProjects = useMemo(() => {
+    if (!activeWorkspace?._id) return []
+    return projects.filter((project) => {
+      const projectWorkspaceId = project.workspace?._id || project.workspace
+      return projectWorkspaceId?.toString() === activeWorkspace._id.toString()
+    })
+  }, [projects, activeWorkspace?._id])
   const [workspaceOpen, setWorkspaceOpen] = useState(true)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
@@ -344,7 +352,7 @@ function Sidebar({ open = true, onClose }) {
 
           {projectsOpen && (
             <div className="flex flex-col gap-0.5 mt-1">
-              {projects.slice(0, 8).map((project) => (
+              {sidebarProjects.slice(0, 8).map((project) => (
                 <button
                   key={project._id}
                   type="button"
@@ -374,7 +382,7 @@ function Sidebar({ open = true, onClose }) {
                 </button>
               ))}
 
-              {projects.length === 0 && (
+              {sidebarProjects.length === 0 && (
                 <p className={`text-xs ${dashboardMutedColor} px-3 py-2`}>
                   No projects yet.
                 </p>

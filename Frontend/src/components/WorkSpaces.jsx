@@ -140,7 +140,7 @@ function MembersPanel({
   const members = useMemo(
     () =>
       (activeWorkspace?.members || []).map((member, index) => {
-        const user = member.user || {}
+        const user = typeof member.user === 'object' && member.user !== null ? member.user : {}
         const name = user.name || user.email || 'Workspace member'
         const userId = user._id || member.user
         return {
@@ -313,7 +313,7 @@ function MembersPanel({
                   <div className="relative">
                     <select
                       value={member.role}
-                      disabled={!canEditRoles}
+                      disabled={!canEditRoles || (member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString())}
                       onChange={async (e) => {
                         if (!activeWorkspace?._id) return
                         try {
@@ -330,10 +330,12 @@ function MembersPanel({
                         }
                       }}
                       className={`h-9 rounded-lg border border-white/[0.08] bg-[#0a0a0a] px-3 pr-8 text-sm text-white outline-none transition focus:border-[#ff4d67] appearance-none ${
-                        !canEditRoles ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'
+                        (!canEditRoles || (member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString())) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'
                       }`}
                     >
-                      <option value="ADMIN">Admin</option>
+                      {(member.role === 'ADMIN' || member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString()) && (
+                        <option value="ADMIN">Admin</option>
+                      )}
                       <option value="MANAGER">Manager</option>
                       <option value="MEMBER">Member</option>
                       <option value="VIEWER">Viewer</option>
@@ -489,9 +491,7 @@ function WorkSpaces() {
   const navigate = useNavigate()
   const location = useLocation()
   const isPersonalSettings = 
-    location.pathname.startsWith('/workspaces/settings/profile') ||
-    location.pathname.startsWith('/workspaces/settings/activity') ||
-    location.pathname.startsWith('/workspaces/settings/cards')
+    location.pathname.startsWith('/workspaces/settings/')
 
   const activeTab = location.pathname.endsWith('/projects')
     ? 'projects'

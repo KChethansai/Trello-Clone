@@ -87,12 +87,13 @@ function ProjectCard({ project, onClick, onDelete }) {
 
 // Create Project Modal
 
-function CreateProjectModal({ onClose, onCreate }) {
+function CreateProjectModal({ onClose, onCreate, workspaces = [], defaultWorkspaceId }) {
   const [title, setTitle] = useState('')
   const [selectedBg, setSelectedBg] = useState(bgOptions[0])
   const [backgroundFile, setBackgroundFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(defaultWorkspaceId || workspaces[0]?._id || '')
 
   useEffect(() => {
     return () => {
@@ -105,11 +106,16 @@ function CreateProjectModal({ onClose, onCreate }) {
       toast.error('Project title is required')
       return
     }
+    if (!selectedWorkspaceId) {
+      toast.error('Please select a workspace')
+      return
+    }
     setSubmitting(true)
     await onCreate({
       title: title.trim(),
       color: selectedBg.value,
       backgroundFile,
+      workspaceId: selectedWorkspaceId,
       isEditable: true,
       isPublished: false
     })
@@ -207,9 +213,26 @@ function CreateProjectModal({ onClose, onCreate }) {
           autoFocus
         />
 
+        <label
+          className={`text-xs ${dashboardMutedColor} font-semibold block mb-1`}
+        >
+          Workspace <span className={`${errorText}`}>*</span>
+        </label>
+        <select
+          value={selectedWorkspaceId}
+          onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+          className={`w-full ${dashboardBgColor} border ${dashboardBorderColor} rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff4d67] mb-4`}
+        >
+          {workspaces.map((ws) => (
+            <option key={ws._id} value={ws._id}>
+              {ws.name}
+            </option>
+          ))}
+        </select>
+
         <button
           onClick={handleCreate}
-          disabled={submitting || !title.trim()}
+          disabled={submitting || !title.trim() || !selectedWorkspaceId}
           className={`w-full ${dashboardPrimaryBg} ${dashboardPrimaryBgHover} disabled:opacity-50 disabled:cursor-not-allowed ${dashboardPrimaryText} text-sm font-semibold py-2 rounded transition-colors`}
         >
           {submitting ? 'Creating...' : 'Create'}
@@ -299,8 +322,19 @@ function Projects() {
     fetchProjects,
     fetchRecentProjects,
     createProject,
-    deleteProject
+    deleteProject,
+    activeFilter
   } = useProjectStore()
+
+  const filteredProjects = projects.filter((project) => {
+    const title = (project.title || project.name || '').toLowerCase()
+    const matchesSearch = title.includes((activeFilter?.search || '').toLowerCase())
+    return matchesSearch && !project.archivedAt
+  })
+  const filteredRecentProjects = recentProjects.filter((project) => {
+    const title = (project.title || project.name || '').toLowerCase()
+    return title.includes((activeFilter?.search || '').toLowerCase())
+  })
   const {
     workspaces,
     activeWorkspace,
@@ -314,23 +348,11 @@ function Projects() {
   useEffect(() => {
     fetchWorkspaces()
     fetchRecentProjects()
-  }, [fetchWorkspaces, fetchRecentProjects])
-
-  useEffect(() => {
-    if (activeWorkspace?._id) {
-      fetchProjects(activeWorkspace._id)
-    }
-  }, [activeWorkspace?._id, fetchProjects])
+    fetchProjects()
+  }, [fetchWorkspaces, fetchRecentProjects, fetchProjects])
 
   const handleCreateProject = async (data) => {
-    if (!activeWorkspace?._id) {
-      toast.error('Create a workspace first')
-      return
-    }
-    const newProject = await createProject({
-      ...data,
-      workspaceId: activeWorkspace._id
-    })
+    const newProject = await createProject(data)
     if (newProject) toast.success('Project created!')
   }
 
@@ -366,7 +388,7 @@ function Projects() {
       className={`flex-1 overflow-y-auto premium-app-bg ${dashboardTextColor} px-4 py-5 app-scrollbar sm:px-6 lg:px-8`}
     >
       {/* recently viewed */}
-      {recentProjects.length > 0 && (
+      {filteredRecentProjects.length > 0 && (
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-3">
             <BsClockHistory className={`text-base ${dashboardMutedColor}`} />
@@ -380,7 +402,7 @@ function Projects() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(194px, 1fr))'
             }}
           >
-            {recentProjects.map((p) => (
+            {filteredRecentProjects.map((p) => (
               <ProjectCard
                 key={p._id}
                 project={p}
@@ -396,32 +418,11 @@ function Projects() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded bg-linear-to-br from-[#ff4d67] to-[#b91c3a] flex items-center justify-center text-white text-xs font-bold">
-              {(activeWorkspace?.name || 'W').slice(0, 1).toUpperCase()}
+              P
             </span>
             <h2 className="text-sm font-semibold text-white">
-              {activeWorkspace?.name || 'No workspace selected'}
+              All projects
             </h2>
-          </div>
-
-          <div className="flex items-center gap-1">
-            {[
-              { icon: <BsGrid3X3Gap />, label: 'Projects' },
-              { icon: <BsPeopleFill />, label: 'Members' },
-              { icon: <BsGear />, label: 'Settings' }
-            ].map(({ icon, label }) => (
-              <button
-                key={label}
-                type="button"
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded text-xs ${dashboardMutedColor} hover:bg-[#18181b] hover:text-white transition-colors`}
-                onClick={() => {
-                  if (label === 'Settings') navigate('/workspaces/settings')
-                  else if (label === 'Members') navigate('/workspaces/members')
-                }}
-              >
-                <span className="text-sm">{icon}</span>
-                {label}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -451,7 +452,7 @@ function Projects() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(194px, 1fr))'
             }}
           >
-            {projects.map((p) => (
+            {filteredProjects.map((p) => (
               <ProjectCard
                 key={p._id}
                 project={p}
@@ -474,6 +475,8 @@ function Projects() {
         <CreateProjectModal
           onClose={() => setShowModal(false)}
           onCreate={handleCreateProject}
+          workspaces={workspaces}
+          defaultWorkspaceId={activeWorkspace?._id}
         />
       )}
       {showWorkspaceModal && (

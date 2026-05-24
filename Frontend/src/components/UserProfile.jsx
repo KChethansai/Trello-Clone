@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { BsPencil, BsCamera, BsX, BsLock } from 'react-icons/bs'
@@ -179,14 +179,20 @@ function UserProfile() {
               <p className="text-sm font-semibold text-white">About Me</p>
 
               {!editing && (
-                <button
-                  type="button"
-                  onClick={() => setEditing(true)}
-                  className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 transition-colors"
-                >
-                  <BsPencil className="text-xs" />
-                  Edit
-                </button>
+                currentUser?.role === 'ADMIN' ? (
+                  <span className="text-xs text-amber-400 font-medium">
+                    Admins cannot modify users directly
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 transition-colors"
+                  >
+                    <BsPencil className="text-xs" />
+                    Edit
+                  </button>
+                )
               )}
             </div>
 
@@ -299,12 +305,18 @@ function UserProfile() {
             </p>
 
             {!showPwForm && (
-              <button
-                onClick={() => setShowPwForm(true)}
-                className="rounded-lg px-2 py-1 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 transition-colors"
-              >
-                Change password
-              </button>
+              currentUser?.role === 'ADMIN' ? (
+                <span className="text-xs text-amber-400 font-medium">
+                  Admins cannot modify users directly
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowPwForm(true)}
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-[#ff8aa0] hover:bg-[#ff4d67]/10 transition-colors"
+                >
+                  Change password
+                </button>
+              )
             )}
           </div>
 
