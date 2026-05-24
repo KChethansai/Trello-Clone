@@ -203,22 +203,6 @@ function AboutKanvora() {
           </div>
         </div>
       </div>
-
-      {/* jobs cta */}
-      <div className={`py-16 px-6 text-center border-t ${defaultBorderColor}`}>
-        <h2 className={`text-3xl font-bold ${primaryText} mb-3`}>
-          Want to join us?
-        </h2>
-        <p className={`${mutedText} mb-6`}>
-          We're always looking for passionate people to help shape the future of
-          work.
-        </p>
-        <button
-          className={`border ${defaultBorderColor} ${accentText} px-6 py-3 rounded-xl font-semibold hover:bg-blue-50 transition-colors`}
-        >
-          View open roles
-        </button>
-      </div>
     </div>
   )
 }
