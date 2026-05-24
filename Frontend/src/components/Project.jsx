@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
-import { BsPlusLg, BsPeopleFill, BsArrowLeft } from 'react-icons/bs'
+import { BsPlusLg, BsPeopleFill, BsArrowLeft, BsChevronDown, BsFlag } from 'react-icons/bs'
 import toast from 'react-hot-toast'
 import {
   DndContext,
@@ -18,7 +19,6 @@ import {
 import { useProjectStore } from '../store/projectStore'
 import { useAuth } from '../store/authStore'
 import { useWorkspaceStore } from '../store/workspaceStore'
-import Navbar from './Navbar'
 import {
   addListButton,
   projectCanvas,
@@ -27,8 +27,6 @@ import {
   projectHeaderBtn,
   projectHeaderTitle,
   projectListRow,
-  projectStatusBar,
-  projectStatusBarLabel,
   projectStatusPillBase,
   projectShareBtn,
   dashboardMutedColor
@@ -90,9 +88,24 @@ function Project() {
   const [showAddList, setShowAddList] = useState(false)
   const [activeCard, setActiveCard] = useState(null)
   const [modalCard, setModalCard] = useState(null)
+  const [modalFocusMembers, setModalFocusMembers] = useState(false)
+
+  const handleOpenCard = useCallback((card, options = {}) => {
+    setModalCard(card)
+    setModalFocusMembers(Boolean(options.showMembers))
+  }, [])
+
+  const handleCloseCard = useCallback(() => {
+    setModalCard(null)
+    setModalFocusMembers(false)
+  }, [])
   const [localLists, setLocalLists] = useState([])
   const [listsReady, setListsReady] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [statusMenuPos, setStatusMenuPos] = useState({ top: 0, right: 0 })
+  const [statusFilter, setStatusFilter] = useState(null)
+  const statusBtnRef = useRef(null)
   const [bgFailed, setBgFailed] = useState(false)
   const [dragOverlayWidth, setDragOverlayWidth] = useState(null)
   const dragStartListId = useRef(null)
@@ -174,12 +187,12 @@ function Project() {
         addListButtonRef.current?.focus()
       }
       if (event.key === 'Escape' && modalCard) {
-        setModalCard(null)
+        handleCloseCard()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [modalCard])
+  }, [modalCard, handleCloseCard])
 
   //fetch project data and join socket room
   useEffect(() => {
@@ -294,43 +307,6 @@ function Project() {
     [projectId, createList, findStatusList, localLists, orderStatusLists]
   )
 
-  useEffect(() => {
-    if (
-      !projectId ||
-      !listsReady ||
-      loading ||
-      statusInitBoard.current === projectId
-    ) {
-      return
-    }
-    statusInitBoard.current = projectId
-
-    const ensureBoardStatuses = async () => {
-      const missingStatuses = STATUS_LABELS.filter(
-        (status) => !findStatusList(status)
-      )
-      if (missingStatuses.length === 0) {
-        await orderStatusLists(localLists)
-        return
-      }
-      for (const status of missingStatuses) {
-        await createList(projectId, status.listTitle)
-      }
-      const loadedLists = await fetchLists(projectId)
-      await orderStatusLists(loadedLists)
-    }
-
-    ensureBoardStatuses()
-  }, [
-    projectId,
-    createList,
-    fetchLists,
-    findStatusList,
-    listsReady,
-    loading,
-    localLists,
-    orderStatusLists
-  ])
 
   // DnD handlers
 
@@ -655,33 +631,163 @@ function Project() {
       style={projectStyle}
     >
       {/* project header */}
-      <Navbar />
       <div className={projectHeader}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/main-page')}
-            className={projectHeaderBtn}
+            className="flex items-center gap-1.5 px-3 h-7 rounded-lg bg-white/[0.08] hover:bg-white/[0.13] border border-white/[0.08] text-white/70 hover:text-white text-xs font-medium transition-colors"
           >
             <BsArrowLeft /> Back
           </button>
+          {/* divider */}
+          <span className="h-4 w-px bg-white/10" />
           <h1 className={projectHeaderTitle}>
             {activeProject?.title || 'Project'}
           </h1>
-          <span className={`text-xs ${dashboardMutedColor}`}>
+          <span className={`text-xs ${dashboardMutedColor} hidden sm:inline`}>
             {boardTotals.cards} cards · {boardTotals.lists} lists
           </span>
           {!canEdit && (
-            <span className="rounded-full bg-[#2f3741] px-3 py-1 text-xs uppercase tracking-widest text-[#a1a1aa]">
-              View-only board
+            <span className="rounded-full bg-white/[0.08] border border-white/10 px-2.5 py-0.5 text-[10px] uppercase tracking-widest text-[#a1a1aa]">
+              View-only
             </span>
           )}
           {activeProject?.isPublished && (
-            <span className="rounded-full bg-[#164b35] px-3 py-1 text-xs uppercase tracking-widest text-[#4caf50]">
+            <span className="rounded-full bg-[#ff4d67]/10 border border-[#ff4d67]/30 px-2.5 py-0.5 text-[10px] uppercase tracking-widest text-[#ff8aa0]">
               Published
             </span>
           )}
         </div>
+
         <div className="flex items-center gap-2">
+          {/* ── Project Status dropdown ── */}
+          <div>
+            <button
+              ref={statusBtnRef}
+              type="button"
+              onClick={() => {
+                if (!showStatusMenu && statusBtnRef.current) {
+                  const rect = statusBtnRef.current.getBoundingClientRect()
+                  setStatusMenuPos({
+                    top: rect.bottom + 8,
+                    right: window.innerWidth - rect.right
+                  })
+                }
+                setShowStatusMenu((prev) => !prev)
+              }}
+              className={`flex items-center gap-1.5 px-3 h-7 rounded-lg border text-xs font-medium transition-colors ${
+                statusFilter
+                  ? statusFilter.pill
+                  : 'bg-white/[0.08] border-white/[0.08] text-white hover:bg-white/[0.13]'
+              }`}
+              aria-label="Project status labels"
+            >
+              <BsFlag
+                style={statusFilter ? { color: statusFilter.color } : undefined}
+                className={!statusFilter ? 'text-[#a3a3ad]' : ''}
+              />
+              Project Status
+              <BsChevronDown
+                className={`transition-transform duration-200 text-[#a3a3ad] ${
+                  showStatusMenu ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {showStatusMenu &&
+              createPortal(
+                <>
+                  {/* full-screen backdrop — rendered in body, above everything */}
+                  <div
+                    className="fixed inset-0 z-[9998]"
+                    onClick={() => setShowStatusMenu(false)}
+                  />
+                  {/* panel — fixed to viewport coords computed from button rect */}
+                  <div
+                    className="animate-enter fixed z-[9999] w-56 rounded-xl border border-white/[0.08] bg-[#0e1114] shadow-2xl backdrop-blur-2xl overflow-hidden"
+                    style={{ top: statusMenuPos.top, right: statusMenuPos.right }}
+                  >
+                  {/* header row inside dropdown */}
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.07]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#a3a3ad]">
+                      Project Status
+                    </span>
+                    <span className="text-[10px] text-[#a3a3ad]">
+                      {boardTotals.lists}L · {boardTotals.cards}C
+                    </span>
+                  </div>
+
+                  {/* show-all row — visible only when a filter is active */}
+                  {statusFilter && (
+                    <div className="border-b border-white/[0.07] p-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(null)
+                          setShowStatusMenu(false)
+                        }}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-[#a3a3ad] hover:bg-white/[0.06] hover:text-white transition-colors"
+                      >
+                        <span className="h-2 w-2 rounded-full bg-white/30 shrink-0" />
+                        Show all lists
+                      </button>
+                    </div>
+                  )}
+
+                  {/* status pills */}
+                  <div className="flex flex-col gap-1 p-2">
+                    {STATUS_LABELS.map((status) => (
+                      <button
+                        key={status.id}
+                        type="button"
+                        onClick={() => {
+                          ensureStatusList(status)
+                          setStatusFilter((prev) =>
+                            prev?.id === status.id ? null : status
+                          )
+                          setShowStatusMenu(false)
+                        }}
+                        className={`${projectStatusPillBase} ${status.pill} w-full justify-start ${
+                          statusFilter?.id === status.id
+                            ? 'ring-2 ring-white/30'
+                            : ''
+                        }`}
+                        title={`Show only ${status.title} list`}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ background: status.color }}
+                        />
+                        {status.title}
+                        {statusFilter?.id === status.id && (
+                          <span className="ml-auto text-[9px] font-bold uppercase tracking-wider opacity-70">
+                            active
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* view-only notice */}
+                  {!canEdit && (
+                    <div className="border-t border-white/[0.07] px-3 py-2 text-[10px] text-[#a3a3ad]">
+                      View-only — editing disabled
+                    </div>
+                  )}
+
+                  {/* latest activity */}
+                  {activityFeed.length > 0 && (
+                    <div className="border-t border-white/[0.07] px-3 py-2 text-[10px] text-[#a3a3ad] truncate">
+                      {activityFeed[0].message || 'Board activity updated'}
+                    </div>
+                  )}
+                  </div>
+                </>,
+                document.body
+              )}
+          </div>
+
+          {/* active users */}
           {activeUsers.length > 0 ? (
             <div className="hidden items-center gap-1 sm:flex">
               {activeUsers.slice(0, 4).map((user) => (
@@ -705,48 +811,20 @@ function Project() {
               <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-black" />
             </span>
           ) : null}
-          {/* publish button, only shown to the board owner */}
+
+          {/* publish button — owner only */}
           {isOwner && (
             <button
+              type="button"
               onClick={() => setShowPublishModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#216e4e] hover:bg-[#1e6045] text-white transition-colors"
+              className="flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-medium bg-[#ff4d67]/15 hover:bg-[#ff4d67]/25 border border-[#ff4d67]/30 text-[#ff8aa0] transition-colors"
             >
               {activeProject?.isPublished ? 'Edit Publish' : 'Publish'}
             </button>
           )}
-          <button className={projectShareBtn}>
-            <BsPeopleFill className="text-xs" /> Share
-          </button>
-        </div>
-      </div>
 
-      <div className={projectStatusBar}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={projectStatusBarLabel}>Status labels</span>
-          <span className={`text-xs ${dashboardMutedColor}`}>
-            {boardTotals.lists} lists / {boardTotals.cards} cards
-          </span>
-          {STATUS_LABELS.map((status) => (
-            <button
-              key={status.id}
-              onClick={() => ensureStatusList(status)}
-              className={`${projectStatusPillBase} ${status.pill}`}
-              title={`Cards marked ${status.title} move to the ${status.listTitle} list`}
-            >
-              {status.title}
-            </button>
-          ))}
-          {!canEdit && (
-            <span className={`text-sm ${dashboardMutedColor} ml-3`}>
-              View-only mode: editing disabled.
-            </span>
-          )}
+
         </div>
-        {activityFeed.length > 0 && (
-          <div className={`hidden text-xs ${dashboardMutedColor} lg:block`}>
-            {activityFeed[0].message || 'Board activity updated'}
-          </div>
-        )}
       </div>
 
       {/* lists area */}
@@ -783,25 +861,33 @@ function Project() {
                     </p>
                   </div>
                 )}
+                {/* SortableContext keeps ALL list IDs so DnD state is intact */}
                 <SortableContext
                   items={localLists.map((list) => `list:${list._id}`)}
                   strategy={horizontalListSortingStrategy}
                 >
-                  {localLists.map((list) => (
-                    <ListColumn
-                      key={list._id}
-                      list={list}
-                      cards={cards[list._id]}
-                      onAddCard={handleAddCard}
-                      onDeleteCard={handleDeleteCard}
-                      onDeleteList={handleDeleteList}
-                      onOpenCard={setModalCard}
-                      onQuickUpdate={handleQuickUpdateCard}
-                      onUpdateList={handleUpdateList}
-                      onStatusList={handleListStatusChange}
-                      isEditable={canEdit}
-                    />
-                  ))}
+                  {localLists
+                    .filter((list) =>
+                      statusFilter
+                        ? normalizeStatusText(list.title) ===
+                          normalizeStatusText(statusFilter.listTitle)
+                        : true
+                    )
+                    .map((list) => (
+                      <ListColumn
+                        key={list._id}
+                        list={list}
+                        cards={cards[list._id]}
+                        onAddCard={handleAddCard}
+                        onDeleteCard={handleDeleteCard}
+                        onDeleteList={handleDeleteList}
+                        onOpenCard={handleOpenCard}
+                        onQuickUpdate={handleQuickUpdateCard}
+                        onUpdateList={handleUpdateList}
+                        onStatusList={handleListStatusChange}
+                        isEditable={canEdit}
+                      />
+                    ))}
                 </SortableContext>
 
                 {showAddList ? (
@@ -848,7 +934,8 @@ function Project() {
                   findListByCardId(modalCard._id))
             )?.title || 'List'
           }
-          onClose={() => setModalCard(null)}
+          onClose={handleCloseCard}
+          initialShowMembers={modalFocusMembers}
           onSave={handleSaveCard}
           onDelete={handleDeleteCard}
           onStatusChange={handleCardStatusChange}

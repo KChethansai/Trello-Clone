@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import axios from 'axios'
 import {
   BsX,
@@ -8,7 +8,6 @@ import {
   BsPaperclip,
   BsChatLeft,
   BsCheckSquare,
-  BsPlusLg,
   BsPersonPlus,
   BsCalendarCheck,
   BsReply
@@ -32,6 +31,10 @@ import {
   projectPrimarySmallBtn,
   projectStatusPillBase,
   projectStatusPillActive,
+  commonCheckbox,
+  progressTrack,
+  progressFill,
+  badgeText,
   dashboardMutedColor,
   dashboardBorderColor,
   dashboardTextColor,
@@ -49,11 +52,20 @@ import {
   getStatusByText,
   getLabelColorClass,
   getId,
-  getInitials,
-  getAvatarClass,
+  getMemberDisplayName,
+  getCardMemberIds,
+  getCardAssignedMembers,
   timeAgo,
   normalizeMember
 } from '../utils/projectUtils'
+import MemberAvatar from './MemberAvatar'
+import MemberAssignPanel from './MemberAssignPanel'
+import { CardLabelsInput, CardLabelsList } from './CardLabels'
+import CardAttachments from './CardAttachments'
+import CardSubtasks from './CardSubtasks'
+import CardChecklists from './CardChecklists'
+import CardComments from './CardComments'
+import CardActions from './CardActions'
 
 export default function CardDetailModal({
   card,
@@ -69,7 +81,8 @@ export default function CardDetailModal({
   readOnly,
   members = [],
   onQuickUpdate,
-  onCommentCountChange
+  onCommentCountChange,
+  initialShowMembers = false
 }) {
   const [title, setTitle] = useState(card.title || '')
   const [desc, setDesc] = useState(card.description || '')
@@ -94,14 +107,19 @@ export default function CardDetailModal({
   )
   const [commentText, setCommentText] = useState('')
   const [comments, setComments] = useState(card.comments || [])
-  const [reactions, setReactions] = useState(card.reactions || [])
   const [saving, setSaving] = useState(false)
   const [attaching, setAttaching] = useState(false)
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
+  const [editingCommentId, setEditingCommentId] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showMentions, setShowMentions] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showLabels, setShowLabels] = useState(false)
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
+  const [newChecklistItemTitles, setNewChecklistItemTitles] = useState({})
   const [selectedLabelColor, setSelectedLabelColor] = useState(
     LABEL_COLOR_VALUES[0]
   )
@@ -111,10 +129,31 @@ export default function CardDetailModal({
   const activeStatus = getCardStatus(card)
   const nonStatusLabels = getNonStatusLabels(labels)
   const memberList = members.map(normalizeMember).filter(Boolean)
-  const assignedMemberId = getId(card.memberId)
-  const assignedMember =
-    memberList.find((member) => getId(member) === assignedMemberId) ||
-    (typeof card.memberId === 'object' ? card.memberId : null)
+  const [assignedMemberIds, setAssignedMemberIds] = useState(() =>
+    getCardMemberIds(card)
+  )
+
+  const assignedMembers = useMemo(
+    () =>
+      assignedMemberIds
+        .map(
+          (id) =>
+            memberList.find((member) => getId(member) === id) ||
+            getCardAssignedMembers(card, memberList).find(
+              (member) => getId(member) === id
+            )
+        )
+        .filter(Boolean),
+    [assignedMemberIds, memberList, card]
+  )
+
+  const toggleAssignedMember = useCallback((memberId) => {
+    setAssignedMemberIds((prev) =>
+      prev.includes(memberId)
+        ? prev.filter((id) => id !== memberId)
+        : [...prev, memberId]
+    )
+  }, [])
   const visibleTypingUsers = Object.values(typingUsers || {}).filter(
     (user) => (user._id || user.id) !== currentUser?._id
   )
@@ -128,7 +167,12 @@ export default function CardDetailModal({
         })
         const nextComments = res.data.payload || []
         setComments(nextComments)
-        onCommentCountChange?.(card._id, nextComments.length)
+        // Defer parent update to avoid "update during render" warning
+        if (onCommentCountChange) {
+          queueMicrotask(() => {
+            onCommentCountChange(card._id, nextComments.length)
+          })
+        }
       } catch {
         setComments([])
       } finally {
@@ -137,7 +181,11 @@ export default function CardDetailModal({
     }
 
     loadComments()
-  }, [card._id, onCommentCountChange])
+    // NOTE: onCommentCountChange intentionally omitted from deps — including it
+    // causes an infinite loop: the callback updating parent state rebuilds its
+    // reference each render, which re-fires this effect endlessly (429 errors).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card._id])
 
   useEffect(() => {
     const handler = (event) => {
@@ -146,6 +194,14 @@ export default function CardDetailModal({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  useEffect(() => {
+    if (initialShowMembers) setShowMembers(true)
+  }, [initialShowMembers])
+
+  useEffect(() => {
+    setAssignedMemberIds(getCardMemberIds(card))
+  }, [card._id])
 
   const handleAttachImage = async (e) => {
     const file = e.target.files?.[0]
@@ -175,7 +231,8 @@ export default function CardDetailModal({
       recurring,
       subtasks,
       checklists,
-      reactions
+      memberIds: assignedMemberIds,
+      memberId: assignedMemberIds[0] || null
     })
     setSaving(false)
     onClose()
@@ -254,10 +311,24 @@ export default function CardDetailModal({
     }
   }
 
-  const handleAssignMember = async (memberId) => {
-    const updated = await onQuickUpdate?.(card._id, { memberId })
-    if (updated) toast.success(memberId ? 'Member assigned' : 'Member removed')
-    setShowMembers(false)
+  const updateComment = async (commentId) => {
+    if (!editText.trim()) return
+    try {
+      const res = await axios.put(
+        `${API_BASE_URL}/api/comment/${commentId}`,
+        { body: editText.trim() },
+        { withCredentials: true }
+      )
+      const updatedComment = res.data.payload
+      setComments(
+        comments.map((c) => (c._id === commentId ? updatedComment : c))
+      )
+      setEditingCommentId(null)
+      setEditText('')
+      toast.success('Comment updated')
+    } catch {
+      toast.error('Could not update comment')
+    }
   }
 
   const handleDateChange = async (value) => {
@@ -266,9 +337,30 @@ export default function CardDetailModal({
     if (updated) toast.success(value ? 'Due date updated' : 'Due date cleared')
   }
 
-  useEffect(() => {
-    return () => window.clearTimeout(typingTimer.current)
-  }, [])
+  const handleCommentChange = (e) => {
+    const value = e.target.value
+    setCommentText(value)
+    handleTyping()
+
+    const lastAtPos = value.lastIndexOf('@')
+    if (lastAtPos !== -1) {
+      const query = value.slice(lastAtPos + 1).split(/\s/)[0]
+      setMentionQuery(query)
+      setShowMentions(true)
+    } else {
+      setShowMentions(false)
+    }
+  }
+
+  const insertMention = (username) => {
+    const lastAtPos = commentText.lastIndexOf('@')
+    const start = commentText.slice(0, lastAtPos)
+    const rest = commentText.slice(lastAtPos + 1).split(/\s/)
+    rest.shift() // remove the partial query
+    const end = rest.join(' ')
+    setCommentText(`${start}@${username} ${end}`)
+    setShowMentions(false)
+  }
 
   return (
     <div
@@ -277,7 +369,7 @@ export default function CardDetailModal({
     >
       <div className={modalPanel}>
         {/* header */}
-        <div className={modalHeader}>
+        <div className={`${modalHeader} shrink-0`}>
           <div className="flex-1">
             {readOnly ? (
               <div className="text-lg font-semibold text-white mb-2">
@@ -300,639 +392,279 @@ export default function CardDetailModal({
               </p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className={`${projectMutedIconBtn} mt-1 shrink-0`}
-          >
-            <BsX className="text-xl" />
-          </button>
+          <div className="mt-1 flex shrink-0 items-start gap-2">
+            {assignedMembers.length > 0 && (
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => !readOnly && setShowMembers(true)}
+                className={`flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${
+                  readOnly ? 'cursor-default' : 'hover:bg-white/5'
+                }`}
+                title={
+                  readOnly
+                    ? assignedMembers.map(getMemberDisplayName).join(', ')
+                    : 'Change assigned members'
+                }
+              >
+                <div className="flex -space-x-2">
+                  {assignedMembers.slice(0, 3).map((member) => (
+                    <MemberAvatar
+                      key={getId(member)}
+                      member={member}
+                      size="sm"
+                      className="ring-2 ring-[#111111]"
+                    />
+                  ))}
+                </div>
+                {assignedMembers.length > 3 && (
+                  <span className="text-[10px] text-[#a1a1aa]">
+                    +{assignedMembers.length - 3}
+                  </span>
+                )}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className={projectMutedIconBtn}
+            >
+              <BsX className="text-xl" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row">
-          {/* main content */}
-          <div className="flex-1">
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <BsChatLeft className={`${dashboardMutedColor} text-sm`} />
-                <h3 className={modalSectionTitle}>Description</h3>
-              </div>
-              <textarea
-                value={desc}
-                onChange={(e) => {
-                  setDesc(e.target.value)
-                  handleTyping()
-                }}
-                placeholder="Add a more detailed description..."
-                rows={4}
-                className={modalTextarea}
-                readOnly={readOnly}
-              />
-              <textarea
-                value={richDescription}
-                onChange={(e) => {
-                  setRichDescription(e.target.value)
-                  handleTyping()
-                }}
-                placeholder="Rich notes, acceptance criteria, links, or @mentions..."
-                rows={5}
-                className={`${modalTextarea} mt-3`}
-                readOnly={readOnly}
-              />
-              {visibleTypingUsers.length > 0 && (
-                <p className={`mt-2 text-xs ${dashboardMutedColor}`}>
-                  {visibleTypingUsers.map((user) => user.name).join(', ')}{' '}
-                  typing...
-                </p>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BsCheckSquare className={`${dashboardMutedColor} text-sm`} />
-                <h3 className={modalSectionTitle}>Status</h3>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {STATUS_LABELS.map((status) => (
-                  <button
-                    key={status.id}
-                    onClick={() => !readOnly && onStatusChange(card, status)}
-                    disabled={readOnly}
-                    className={`${projectStatusPillBase} ${status.pill} ${
-                      activeStatus?.id === status.id
-                        ? projectStatusPillActive
-                        : ''
-                    } ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    {status.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <label className={`text-xs ${dashboardMutedColor}`}>
-                Due date
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  readOnly={readOnly}
-                  className={`${projectInput} mt-1`}
-                />
-              </label>
-              <label className={`text-xs ${dashboardMutedColor}`}>
-                Priority
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  disabled={readOnly}
-                  className={`${projectInput} mt-1`}
-                >
-                  {PRIORITY_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={`text-xs ${dashboardMutedColor}`}>
-                Estimate
-                <input
-                  type="number"
-                  min="0"
-                  value={estimatedMinutes}
-                  onChange={(e) => setEstimatedMinutes(e.target.value)}
-                  readOnly={readOnly}
-                  className={`${projectInput} mt-1`}
-                  placeholder="Minutes"
-                />
-              </label>
-            </div>
-
-            <div className="mb-4 grid gap-3 sm:grid-cols-2">
-              <label className={`text-xs ${dashboardMutedColor}`}>
-                Recurrence
-                <select
-                  value={recurring.interval || 'NONE'}
-                  onChange={(e) =>
-                    setRecurring({
-                      ...recurring,
-                      enabled: e.target.value !== 'NONE',
-                      interval: e.target.value
-                    })
-                  }
-                  disabled={readOnly}
-                  className={`${projectInput} mt-1`}
-                >
-                  {RECURRING_OPTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className={`text-xs ${dashboardMutedColor}`}>
-                Labels
-                <div className="mt-1 flex gap-2">
-                  <input
-                    value={labelText}
-                    onChange={(e) => setLabelText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addLabel()}
-                    readOnly={readOnly}
-                    className={projectInput}
-                    placeholder="Add label"
-                  />
-                  {!readOnly && (
-                    <button
-                      onClick={addLabel}
-                      className={projectPrimarySmallBtn}
-                    >
-                      Add
-                    </button>
-                  )}
-                </div>
-                {!readOnly && showLabels && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {LABEL_COLOR_VALUES.map((value, index) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setSelectedLabelColor(value)}
-                        className={`h-6 w-6 rounded-full ${LABEL_PRESETS[index]} ${
-                          selectedLabelColor === value
-                            ? 'ring-2 ring-white'
-                            : ''
-                        }`}
-                        aria-label={`Choose ${value} label`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </label>
-            </div>
-
-            {labels?.length > 0 && (
-              <div className="mb-4">
+        <div className="modal-scroll flex-1 min-h-0 overflow-y-auto app-scrollbar">
+          <div className="flex flex-col gap-4 p-4 sm:p-6 lg:flex-row">
+            {/* main content */}
+            <div className="flex-1">
+              <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <BsTag className={`${dashboardMutedColor} text-sm`} />
-                  <h3 className={modalSectionTitle}>Labels</h3>
+                  <BsChatLeft className={`${dashboardMutedColor} text-sm`} />
+                  <h3 className={modalSectionTitle}>Description</h3>
                 </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {nonStatusLabels.map((label, i) => (
-                    <span
-                      key={i}
-                      onClick={() => !readOnly && removeLabel(i)}
-                      className={`text-xs px-3 py-1 rounded-full font-semibold text-white ${getLabelColorClass(label.color)} ${readOnly ? '' : 'cursor-pointer'}`}
-                    >
-                      {label.text}
-                      {!readOnly && <span className="ml-1">x</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {card.dueDate && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <BsCalendar className={`${dashboardMutedColor} text-sm`} />
-                  <h3 className={modalSectionTitle}>Due Date</h3>
-                </div>
-                <span className={`text-sm ${dashboardTextColor}`}>
-                  {new Date(card.dueDate).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </span>
-              </div>
-            )}
-
-            {card.attachment?.length > 0 && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <BsPaperclip className={`${dashboardMutedColor} text-sm`} />
-                  <h3 className={modalSectionTitle}>Attachments</h3>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {card.attachment.map((item, index) => (
-                    <a
-                      key={`${item.url}-${index}`}
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`block overflow-hidden rounded-lg bg-[#18181b] border ${dashboardBorderColor}`}
-                    >
-                      <img
-                        src={item.url}
-                        alt={item.name || 'Card attachment'}
-                        className="h-24 w-full object-cover"
-                      />
-                      <span
-                        className={`block truncate px-2 py-1 text-[11px] ${dashboardTextColor}`}
-                      >
-                        {item.name || 'Image attachment'}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BsCheckSquare className={`${dashboardMutedColor} text-sm`} />
-                <h3 className={modalSectionTitle}>Subtasks</h3>
-              </div>
-              <div className="space-y-2">
-                {subtasks.map((item, index) => (
-                  <label
-                    key={`${item.title}-${index}`}
-                    className={`flex items-center gap-2 rounded-lg border ${dashboardBorderColor} bg-[#18181b] px-3 py-2 text-sm ${dashboardTextColor}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(item.completed)}
-                      disabled={readOnly}
-                      onChange={(e) =>
-                        setSubtasks((items) =>
-                          items.map((entry, idx) =>
-                            idx === index
-                              ? { ...entry, completed: e.target.checked }
-                              : entry
-                          )
-                        )
-                      }
-                    />
-                    <span
-                      className={
-                        item.completed ? 'line-through opacity-60' : ''
-                      }
-                    >
-                      {item.title}
-                    </span>
-                  </label>
-                ))}
-                {!readOnly && (
-                  <button
-                    className={modalActionBtn}
-                    onClick={() =>
-                      setSubtasks((items) => [
-                        ...items,
-                        {
-                          title: `Subtask ${items.length + 1}`,
-                          completed: false
-                        }
-                      ])
-                    }
-                  >
-                    <BsPlusLg /> Add subtask
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BsCheckSquare className={`${dashboardMutedColor} text-sm`} />
-                <h3 className={modalSectionTitle}>Checklist</h3>
-              </div>
-              {checklists.map((checklist, checklistIndex) => (
-                <div key={checklistIndex} className="mb-3 space-y-2">
-                  <input
-                    value={checklist.title}
-                    onChange={(e) =>
-                      setChecklists((items) =>
-                        items.map((entry, idx) =>
-                          idx === checklistIndex
-                            ? { ...entry, title: e.target.value }
-                            : entry
-                        )
-                      )
-                    }
-                    readOnly={readOnly}
-                    className={projectInput}
-                  />
-                  {(checklist.items || []).map((item, itemIndex) => (
-                    <label
-                      key={`${item.title}-${itemIndex}`}
-                      className={`flex items-center gap-2 text-sm ${dashboardTextColor}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(item.completed)}
-                        disabled={readOnly}
-                        onChange={(e) =>
-                          setChecklists((items) =>
-                            items.map((entry, idx) =>
-                              idx === checklistIndex
-                                ? {
-                                    ...entry,
-                                    items: entry.items.map(
-                                      (checkItem, checkIdx) =>
-                                        checkIdx === itemIndex
-                                          ? {
-                                              ...checkItem,
-                                              completed: e.target.checked
-                                            }
-                                          : checkItem
-                                    )
-                                  }
-                                : entry
-                            )
-                          )
-                        }
-                      />
-                      <span
-                        className={
-                          item.completed ? 'line-through opacity-60' : ''
-                        }
-                      >
-                        {item.title}
-                      </span>
-                    </label>
-                  ))}
-                  {!readOnly && (
-                    <button
-                      className={modalActionBtn}
-                      onClick={() =>
-                        setChecklists((items) =>
-                          items.map((entry, idx) =>
-                            idx === checklistIndex
-                              ? {
-                                  ...entry,
-                                  items: [
-                                    ...(entry.items || []),
-                                    {
-                                      title: `Item ${(entry.items || []).length + 1}`,
-                                      completed: false
-                                    }
-                                  ]
-                                }
-                              : entry
-                          )
-                        )
-                      }
-                    >
-                      <BsPlusLg /> Add item
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BsChatLeft className={`${dashboardMutedColor} text-sm`} />
-                <h3 className={modalSectionTitle}>Comments</h3>
-              </div>
-              <div className="space-y-2">
-                {commentsLoading ? (
-                  <div
-                    className={`rounded-lg border ${dashboardBorderColor} ${dashboardSurfaceColor} p-3 text-xs ${dashboardMutedColor}`}
-                  >
-                    Loading comments...
-                  </div>
-                ) : comments.length === 0 ? (
-                  <div
-                    className={`rounded-lg border ${dashboardBorderColor} ${dashboardSurfaceColor} p-3 text-xs ${dashboardMutedColor}`}
-                  >
-                    No comments yet.
-                  </div>
-                ) : (
-                  comments.map((comment) => {
-                    const isOwn = getId(comment.author) === currentUser?._id
-                    const authorName =
-                      comment.author?.name || comment.authorName || 'Teammate'
-                    return (
-                      <div
-                        key={comment._id || comment.createdAt}
-                        className={`rounded-lg border ${dashboardBorderColor} ${dashboardSurfaceColor} p-3`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p
-                              className={`text-xs font-semibold ${dashboardTextColor}`}
-                            >
-                              {authorName}
-                            </p>
-                            <p className={`mt-1 text-sm ${dashboardTextColor}`}>
-                              {comment.body}
-                            </p>
-                          </div>
-                          {isOwn && !readOnly && (
-                            <button
-                              type="button"
-                              onClick={() => deleteComment(comment._id)}
-                              className={`${dashboardMutedColor} hover:text-white`}
-                              aria-label="Delete comment"
-                            >
-                              <BsTrash />
-                            </button>
-                          )}
-                        </div>
-                        <div
-                          className={`mt-2 flex items-center gap-3 text-xs ${dashboardMutedColor}`}
-                        >
-                          <span>{timeAgo(comment.createdAt)}</span>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 hover:text-white"
-                            onClick={() => setCommentText(`@${authorName} `)}
-                          >
-                            <BsReply /> Reply
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-              {!readOnly && (
-                <div className="mt-3">
-                  <textarea
-                    value={commentText}
-                    onChange={(e) => {
-                      setCommentText(e.target.value)
-                      handleTyping()
-                    }}
-                    rows={2}
-                    placeholder="Write a comment with @mentions..."
-                    className={modalTextarea}
-                  />
-                  <button
-                    className={`${projectPrimarySmallBtn} mt-2`}
-                    onClick={() => addComment()}
-                    disabled={postingComment || !commentText.trim()}
-                  >
-                    {postingComment ? 'Posting...' : 'Comment'}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* sidebar actions */}
-          <div className="flex shrink-0 flex-col gap-2 lg:w-40">
-            <p
-              className={`text-xs font-semibold ${dashboardMutedColor} uppercase tracking-wide mb-1`}
-            >
-              Actions
-            </p>
-            <button
-              className={modalActionBtn}
-              onClick={() => !readOnly && setShowMembers((open) => !open)}
-              disabled={readOnly}
-            >
-              <BsPersonPlus /> Members
-            </button>
-            {showMembers && (
-              <div
-                className={`rounded-lg border ${dashboardBorderColor} ${dashboardSurfaceColor} p-2`}
-              >
-                {assignedMember && (
-                  <button
-                    type="button"
-                    onClick={() => handleAssignMember(null)}
-                    className={`${modalActionBtn} mb-1 w-full`}
-                  >
-                    Unassign {assignedMember.name || assignedMember.email}
-                  </button>
-                )}
-                {memberList.length === 0 ? (
-                  <p className={`px-2 py-1 text-xs ${dashboardMutedColor}`}>
-                    No members available.
+                <textarea
+                  value={desc}
+                  onChange={(e) => {
+                    setDesc(e.target.value)
+                    handleTyping()
+                  }}
+                  placeholder="Add a more detailed description..."
+                  rows={4}
+                  className={modalTextarea}
+                  readOnly={readOnly}
+                />
+                <textarea
+                  value={richDescription}
+                  onChange={(e) => {
+                    setRichDescription(e.target.value)
+                    handleTyping()
+                  }}
+                  placeholder="Rich notes, acceptance criteria, links, or @mentions..."
+                  rows={5}
+                  className={`${modalTextarea} mt-3`}
+                  readOnly={readOnly}
+                />
+                {visibleTypingUsers.length > 0 && (
+                  <p className={`mt-2 text-xs ${dashboardMutedColor}`}>
+                    {visibleTypingUsers.map((user) => user.name).join(', ')}{' '}
+                    typing...
                   </p>
-                ) : (
-                  memberList.map((member) => (
-                    <button
-                      key={getId(member)}
-                      type="button"
-                      onClick={() => handleAssignMember(getId(member))}
-                      className={`${modalActionBtn} w-full`}
-                    >
-                      <span
-                        className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white ${getAvatarClass(member.name || member.email)}`}
-                      >
-                        {getInitials(member.name || member.email)}
-                      </span>
-                      {member.name || member.email}
-                    </button>
-                  ))
                 )}
               </div>
-            )}
-            <button
-              className={modalActionBtn}
-              onClick={() => !readOnly && setShowLabels((open) => !open)}
-              disabled={readOnly}
-            >
-              <BsTag /> Labels
-            </button>
-            <button className={modalActionBtn}>
-              <BsEye /> {card.watchers?.length || 0} watching
-            </button>
-            <div className="flex flex-wrap gap-1">
-              {['+1', 'Hot', 'Done'].map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() =>
-                    setReactions((items) => [
-                      ...items,
-                      { emoji, userId: currentUser?._id }
-                    ])
-                  }
-                  className="rounded-md bg-[#18181b] px-2 py-1 text-sm hover:bg-[#27272a] disabled:opacity-60"
-                >
-                  {emoji}{' '}
-                  {reactions.filter((item) => item.emoji === emoji).length}
-                </button>
-              ))}
-            </div>
-            {!readOnly && (
-              <>
-                {[
-                  { icon: <BsCheckSquare />, label: 'Checklist' },
-                  { icon: <BsPaperclip />, label: 'Attachment' }
-                ].map(({ icon, label }) => (
-                  <button
-                    key={label}
-                    onClick={() => {
-                      if (label === 'Attachment') fileInputRef.current?.click()
-                    }}
-                    className={modalActionBtn}
-                  >
-                    <span>{icon}</span> {label}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setShowDatePicker((open) => !open)}
-                  className={modalActionBtn}
-                >
-                  <BsCalendarCheck /> Dates
-                </button>
-                {showDatePicker && (
+
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <BsCheckSquare className={`${dashboardMutedColor} text-sm`} />
+                  <h3 className={modalSectionTitle}>Status</h3>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {STATUS_LABELS.map((status) => (
+                    <button
+                      key={status.id}
+                      onClick={() => !readOnly && onStatusChange(card, status)}
+                      disabled={readOnly}
+                      className={`${projectStatusPillBase} ${status.pill} ${
+                        activeStatus?.id === status.id
+                          ? projectStatusPillActive
+                          : ''
+                      } ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      {status.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                <label className={`text-xs ${dashboardMutedColor}`}>
+                  Due date
                   <input
                     type="date"
                     value={dueDate}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    className={projectInput}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    readOnly={readOnly}
+                    className={`${projectInput} mt-1`}
                   />
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  className="hidden"
-                  onChange={handleAttachImage}
+                </label>
+                <label className={`text-xs ${dashboardMutedColor}`}>
+                  Priority
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    disabled={readOnly}
+                    className={`${projectInput} mt-1`}
+                  >
+                    {PRIORITY_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={`text-xs ${dashboardMutedColor}`}>
+                  Estimate
+                  <input
+                    type="number"
+                    min="0"
+                    value={estimatedMinutes}
+                    onChange={(e) => setEstimatedMinutes(e.target.value)}
+                    readOnly={readOnly}
+                    className={`${projectInput} mt-1`}
+                    placeholder="Minutes"
+                  />
+                </label>
+              </div>
+
+              <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                <label className={`text-xs ${dashboardMutedColor}`}>
+                  Recurrence
+                  <select
+                    value={recurring.interval || 'NONE'}
+                    onChange={(e) =>
+                      setRecurring({
+                        ...recurring,
+                        enabled: e.target.value !== 'NONE',
+                        interval: e.target.value
+                      })
+                    }
+                    disabled={readOnly}
+                    className={`${projectInput} mt-1`}
+                  >
+                    {RECURRING_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <CardLabelsInput
+                  labelText={labelText}
+                  setLabelText={setLabelText}
+                  showLabels={showLabels}
+                  selectedLabelColor={selectedLabelColor}
+                  setSelectedLabelColor={setSelectedLabelColor}
+                  addLabel={addLabel}
+                  readOnly={readOnly}
                 />
-                {attaching && (
-                  <p className={`text-[11px] ${dashboardMutedColor} px-1`}>
-                    Uploading image...
-                  </p>
-                )}
-                <hr className={`${dashboardBorderColor} my-1`} />
-                {deleteConfirm ? (
-                  <div
-                    className={`rounded-lg border ${dashboardBorderColor} ${dashboardSurfaceColor} p-2`}
-                  >
-                    <p className={`mb-2 text-xs ${dashboardMutedColor}`}>
-                      Delete this card?
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          onDelete(card._id, card.listId?.toString() || '')
-                          onClose()
-                        }}
-                        className={modalDangerBtn}
-                      >
-                        Yes, delete
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(false)}
-                        className={modalActionBtn}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+              </div>
+
+              <CardLabelsList
+                labels={labels}
+                nonStatusLabels={nonStatusLabels}
+                removeLabel={removeLabel}
+                readOnly={readOnly}
+              />
+
+              {card.dueDate && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <BsCalendar className={`${dashboardMutedColor} text-sm`} />
+                    <h3 className={modalSectionTitle}>Due Date</h3>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setDeleteConfirm(true)}
-                    className={modalDangerBtn}
-                  >
-                    <BsTrash /> Delete
-                  </button>
-                )}
-              </>
-            )}
+                  <span className={`text-sm ${dashboardTextColor}`}>
+                    {new Date(card.dueDate).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+              )}
+
+              <CardAttachments attachments={card.attachment} />
+
+              <CardSubtasks
+                cardId={card._id}
+                subtasks={subtasks}
+                setSubtasks={setSubtasks}
+                newSubtaskTitle={newSubtaskTitle}
+                setNewSubtaskTitle={setNewSubtaskTitle}
+                onQuickUpdate={onQuickUpdate}
+                readOnly={readOnly}
+              />
+
+              <CardChecklists
+                cardId={card._id}
+                checklists={checklists}
+                setChecklists={setChecklists}
+                newChecklistItemTitles={newChecklistItemTitles}
+                setNewChecklistItemTitles={setNewChecklistItemTitles}
+                onQuickUpdate={onQuickUpdate}
+                readOnly={readOnly}
+              />
+
+              <CardComments
+                cardId={card._id}
+                comments={comments}
+                commentsLoading={commentsLoading}
+                currentUser={currentUser}
+                commentText={commentText}
+                setCommentText={setCommentText}
+                showMentions={showMentions}
+                mentionQuery={mentionQuery}
+                memberList={memberList}
+                postingComment={postingComment}
+                addComment={addComment}
+                deleteComment={deleteComment}
+                updateComment={updateComment}
+                insertMention={insertMention}
+                handleCommentChange={handleCommentChange}
+                editingCommentId={editingCommentId}
+                setEditingCommentId={setEditingCommentId}
+                editText={editText}
+                setEditText={setEditText}
+                readOnly={readOnly}
+              />
+            </div>
+
+            <CardActions
+              card={card}
+              readOnly={readOnly}
+              showMembers={showMembers}
+              setShowMembers={setShowMembers}
+              assignedMemberIds={assignedMemberIds}
+              memberList={memberList}
+              assignedMembers={assignedMembers}
+              toggleAssignedMember={toggleAssignedMember}
+              fileInputRef={fileInputRef}
+              handleAttachImage={handleAttachImage}
+              showDatePicker={showDatePicker}
+              setShowDatePicker={setShowDatePicker}
+              dueDate={dueDate}
+              handleDateChange={handleDateChange}
+              attaching={attaching}
+              deleteConfirm={deleteConfirm}
+              setDeleteConfirm={setDeleteConfirm}
+              onDelete={onDelete}
+              onClose={onClose}
+              projectInput={projectInput}
+            />
           </div>
         </div>
 
-        <div className="px-6 pb-5 flex gap-2">
+        <div
+          className={`shrink-0 px-6 pt-5 pb-6 flex gap-3 border-t ${dashboardBorderColor}`}
+        >
           {!readOnly ? (
             <>
               <button
@@ -956,4 +688,3 @@ export default function CardDetailModal({
     </div>
   )
 }
-import { BsEye } from 'react-icons/bs'

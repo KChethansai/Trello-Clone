@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import axios from 'axios'
 import toast from 'react-hot-toast'
@@ -10,15 +10,16 @@ import {
   BsPeopleFill,
   BsPerson,
   BsShieldCheck,
-  BsX
+  BsX,
+  BsCreditCard,
+  BsCalendar3
 } from 'react-icons/bs'
 import { API_BASE_URL } from '../config/api'
 import { useAuth } from '../store/authStore'
 import { useWorkspaceStore } from '../store/workspaceStore'
 import {
-  buttonGhost,
   buttonSecondary,
-  dangerButton,
+  commonCheckbox,
   dashboardBgColor,
   dashboardBorderColor,
   dashboardMutedColor,
@@ -31,7 +32,10 @@ import {
   fieldBase,
   headingPage,
   headingSection,
-  iconButton
+  iconButton,
+  buttonGhost,
+  dangerButton,
+  statusLabelStyles
 } from '../Styles/common'
 
 const personalNav = [
@@ -42,10 +46,10 @@ const personalNav = [
 
 const workspaceNav = [
   { id: 'projects', label: 'Projects', icon: <BsGrid3X3Gap /> },
+  { id: 'cards', label: 'Cards', icon: <BsCreditCard /> },
   { id: 'members', label: 'Members', icon: <BsPeopleFill /> },
   { id: 'ws-settings', label: 'Settings', icon: <BsGear /> }
 ]
-
 
 const getInitials = (name = 'User') =>
   name
@@ -69,11 +73,35 @@ const timeAgo = (dateStr) => {
   return `${months}mo ago`
 }
 
+const statusMeta = {
+  'TO-DO': { title: 'To Do', pill: 'border-blue-500/30 bg-blue-500/10 text-blue-400' },
+  'IN PROGRESS': { title: 'In Progress', pill: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' },
+  'DONE': { title: 'Done', pill: 'border-green-500/30 bg-green-500/10 text-green-400' }
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
 
 function ProfileAndVisibilityPanel() {
   const { currentUser, updateProfile, checkAuth } = useAuth()
   const [visibleToWorkspace, setVisibleToWorkspace] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  const [freq, setFreq] = useState('periodically')
+  const [notifAll, setNotifAll] = useState(true)
+  const [notifComments, setNotifComments] = useState(true)
+
+  const handleNotifAll = (checked) => {
+    setNotifAll(checked)
+    setNotifComments(checked)
+  }
+
   const {
     register,
     handleSubmit,
@@ -207,7 +235,7 @@ function ProfileAndVisibilityPanel() {
               type="checkbox"
               checked={visibleToWorkspace}
               onChange={(event) => setVisibleToWorkspace(event.target.checked)}
-              className="mt-1"
+              className={`${commonCheckbox} mt-1`}
             />
             <span>
               Make profile visible to workspace members
@@ -227,11 +255,82 @@ function ProfileAndVisibilityPanel() {
           {saving ? 'Saving...' : 'Save profile'}
         </button>
       </div>
+
+      <div className="mt-5 grid gap-5">
+        <section
+          className={`rounded-2xl border ${dashboardBorderColor} ${dashboardSurfaceColor} p-5`}
+        >
+          <h3 className={headingSection}>Language and region</h3>
+          <button className={`${buttonSecondary} mt-4`}>Change language</button>
+        </section>
+
+        <section
+          className={`rounded-2xl border ${dashboardBorderColor} ${dashboardSurfaceColor} p-5`}
+        >
+          <h3 className={headingSection}>Email notifications</h3>
+          <p className={`mt-1 text-sm ${dashboardMutedColor}`}>
+            Email notifications can be sent instantly, periodically, or never.
+          </p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {['never', 'periodically', 'instantly'].map((opt) => (
+              <label
+                key={opt}
+                className={`flex cursor-pointer items-center gap-3 rounded-xl border ${dashboardBorderColor} p-3 text-sm capitalize transition ${
+                  freq === opt
+                    ? `${dashboardPrimaryBg} ${dashboardPrimaryText}`
+                    : `${dashboardBgColor} text-white ${dashboardSurfaceHover}`
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="freq"
+                  value={opt}
+                  checked={freq === opt}
+                  onChange={() => setFreq(opt)}
+                  className="accent-[#ff4d67]"
+                />
+                {opt}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <label className="flex cursor-pointer items-center gap-3 text-sm text-white">
+              <input
+                type="checkbox"
+                checked={notifAll}
+                onChange={(event) => handleNotifAll(event.target.checked)}
+                className={commonCheckbox}
+              />
+              Select all notifications
+            </label>
+            <label className="ml-6 flex cursor-pointer items-start gap-3 text-sm text-white">
+              <input
+                type="checkbox"
+                checked={notifComments}
+                onChange={(event) => {
+                  setNotifComments(event.target.checked)
+                  if (!event.target.checked) setNotifAll(false)
+                }}
+                className={`${commonCheckbox} mt-1`}
+              />
+              <span>
+                Comments
+                <span className={`block text-xs ${dashboardMutedColor}`}>
+                  New comments added on cards you are watching
+                </span>
+              </span>
+            </label>
+          </div>
+        </section>
+      </div>
     </section>
   )
 }
 
 function ActivityPanel() {
+  const { activeWorkspace } = useWorkspaceStore()
   const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -239,11 +338,18 @@ function ActivityPanel() {
     let ignore = false
 
     const fetchActivity = async () => {
+      if (!activeWorkspace?._id) {
+        setLoading(false)
+        return
+      }
       try {
         setLoading(true)
-        const res = await axios.get(`${API_BASE_URL}/notifications`, {
-          withCredentials: true
-        })
+        const res = await axios.get(
+          `${API_BASE_URL}/api/workspaces/${activeWorkspace._id}/activity`,
+          {
+            withCredentials: true
+          }
+        )
         if (!ignore) setActivity(res.data.payload || [])
       } catch {
         if (!ignore) setActivity([])
@@ -256,7 +362,7 @@ function ActivityPanel() {
     return () => {
       ignore = true
     }
-  }, [])
+  }, [activeWorkspace?._id])
 
   return (
     <section className="max-w-4xl">
@@ -303,9 +409,10 @@ function ActivityPanel() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm ${dashboardTextColor}`}>
-                    {item.message || item.title || 'Workspace activity updated'}
+                    {item.message || 'Workspace activity updated'}
                   </p>
                   <p className={`mt-1 text-xs ${dashboardMutedColor}`}>
+                    {item.projectName ? `${item.projectName} · ` : ''}
                     {timeAgo(item.createdAt)}
                   </p>
                 </div>
@@ -317,7 +424,6 @@ function ActivityPanel() {
     </section>
   )
 }
-
 
 function WorkspaceProjectsPanel() {
   const navigate = useNavigate()
@@ -395,6 +501,112 @@ function WorkspaceProjectsPanel() {
               </p>
             </button>
           ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CardsPanel() {
+  const { activeWorkspace } = useWorkspaceStore()
+  const [cards, setCards] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let ignore = false
+
+    const fetchCards = async () => {
+      if (!activeWorkspace?._id) {
+        setCards([])
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        const res = await axios.get(
+          `${API_BASE_URL}/api/workspaces/${activeWorkspace._id}/cards`,
+          { withCredentials: true }
+        )
+        if (!ignore) setCards(res.data.payload || [])
+      } catch {
+        if (!ignore) setCards([])
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+
+    fetchCards()
+    return () => {
+      ignore = true
+    }
+  }, [activeWorkspace?._id])
+
+  return (
+    <section className="max-w-4xl">
+      <h2 className={headingPage}>Cards</h2>
+
+      <div className="mt-6 grid gap-3">
+        {loading ? (
+          [0, 1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className={`animate-pulse rounded-xl border ${dashboardBorderColor} ${dashboardSurfaceColor} p-4`}
+            >
+              <div className={`h-4 w-2/3 rounded ${dashboardBgColor}`} />
+              <div className={`mt-3 h-3 w-1/3 rounded ${dashboardBgColor}`} />
+            </div>
+          ))
+        ) : cards.length === 0 ? (
+          <div
+            className={`rounded-2xl border border-dashed ${dashboardBorderColor} ${dashboardSurfaceColor} p-8 text-center`}
+          >
+            <BsCreditCard
+              className={`mx-auto mb-3 text-3xl ${dashboardMutedColor}`}
+            />
+            <p className="font-semibold text-white">No cards in this workspace</p>
+            <p className={`mt-1 text-sm ${dashboardMutedColor}`}>
+              Cards from all projects in {activeWorkspace?.name || 'this workspace'}{' '}
+              will appear here.
+            </p>
+          </div>
+        ) : (
+          cards.map((card) => {
+            const status = card.status || 'TO-DO'
+            const meta = statusMeta[status] || statusLabelStyles.todo
+
+            return (
+              <article
+                key={card._id}
+                className={`rounded-xl border ${dashboardBorderColor} ${dashboardSurfaceColor} p-4 ${dashboardSurfaceHover} transition-colors`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-white">
+                      {card.title || 'Untitled card'}
+                    </h3>
+                    <p className={`mt-1 text-xs ${dashboardMutedColor}`}>
+                      {card.projectName || 'Project'}
+                      {card.listTitle ? ` · ${card.listTitle}` : ''}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${meta.pill}`}
+                  >
+                    {meta.title}
+                  </span>
+                </div>
+                {card.dueDate && (
+                  <p
+                    className={`mt-3 flex items-center gap-1.5 text-xs ${dashboardMutedColor}`}
+                  >
+                    <BsCalendar3 />
+                    Due {formatDate(card.dueDate)}
+                  </p>
+                )}
+              </article>
+            )
+          })
         )}
       </div>
     </section>
@@ -632,6 +844,8 @@ const renderPanel = (active) => {
       return <ActivityPanel />
     case 'projects':
       return <WorkspaceProjectsPanel />
+    case 'cards':
+      return <CardsPanel />
     case 'members':
       return <MembersSettingsPanel />
     case 'ws-settings':
@@ -690,7 +904,7 @@ function Settings() {
           Workspace
         </p>
         <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#1d2125] px-3 py-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-linear-to-br from-teal-400 to-cyan-600 text-xs font-bold text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 text-xs font-bold text-white">
             {(workspaceName || 'W').slice(0, 1).toUpperCase()}
           </span>
           <span

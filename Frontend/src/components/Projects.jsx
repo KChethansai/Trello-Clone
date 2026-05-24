@@ -1,4 +1,4 @@
-﻿// Projects component: renders a focused piece of the Kanvora UI.
+// Projects component: renders a focused piece of the Kanvora UI.
 import { useState, useEffect } from 'react'
 import {
   BsClockHistory,
@@ -395,7 +395,7 @@ function Projects() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded bg-linear-to-br from-teal-400 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
+            <span className="w-7 h-7 rounded bg-linear-to-br from-[#ff4d67] to-[#b91c3a] flex items-center justify-center text-white text-xs font-bold">
               {(activeWorkspace?.name || 'W').slice(0, 1).toUpperCase()}
             </span>
             <h2 className="text-sm font-semibold text-white">
@@ -414,9 +414,8 @@ function Projects() {
                 type="button"
                 className={`flex items-center gap-1.5 px-2.5 h-7 rounded text-xs ${dashboardMutedColor} hover:bg-[#18181b] hover:text-white transition-colors`}
                 onClick={() => {
-                  if (label === 'Settings')
-                    navigate('/main-page/settings/ws-settings')
-                  else if (label === 'Members') navigate('/workspaces')
+                  if (label === 'Settings') navigate('/workspaces/settings')
+                  else if (label === 'Members') navigate('/workspaces/members')
                 }}
               >
                 <span className="text-sm">{icon}</span>

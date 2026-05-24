@@ -118,15 +118,6 @@ export const init = (httpServer) => {
       leaveRealtimeRoom(`project:${projectId}`)
     })
 
-    // Board room
-    socket.on('join-board', (boardId, user) => {
-      joinRealtimeRoom(`board:${boardId}`, user)
-    })
-
-    socket.on('leave-board', (boardId) => {
-      leaveRealtimeRoom(`board:${boardId}`)
-    })
-
     // User room
     socket.on('join-user', (userId) => {
       socket.join(`user:${userId}`)

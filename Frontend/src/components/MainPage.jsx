@@ -128,25 +128,25 @@ function WorkspaceDashboard({ viewMode }) {
                 <BsBarChart className="text-[#ff4d67]" /> Team Workload
               </h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {Object.entries(analytics?.workload || { unassigned: 0 }).map(
-                  ([user, count]) => (
+                {(Array.isArray(analytics?.workload) ? analytics.workload : Object.entries(analytics?.workload || { unassigned: 0 }).map(([user, count]) => ({ userId: user === 'unassigned' ? null : user, name: user === 'unassigned' ? 'Unassigned' : user, count }))).map(
+                  (entry) => (
                     <div
-                      key={user}
+                      key={entry.userId || 'unassigned'}
                       className="rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-md hover:bg-black/60 transition-colors"
                     >
                       <p className="truncate text-sm font-semibold text-white/90 mb-3">
-                        {user}
+                        {entry.name}
                       </p>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
                           <div
                             className="h-full rounded-full bg-gradient-to-r from-[#ff4d67] to-[#ff758c] shadow-[0_0_10px_#ff4d67]"
                             style={{
-                              width: `${Math.min(100, Number(count) * 12)}%`
+                              width: `${Math.min(100, Number(entry.count) * 12)}%`
                             }}
                           />
                         </div>
-                        <span className="text-xs font-bold text-[var(--dash-text-dark)]">{count}</span>
+                        <span className="text-xs font-bold text-[var(--dash-text-dark)]">{entry.count} card{entry.count === 1 ? '' : 's'}</span>
                       </div>
                     </div>
                   )

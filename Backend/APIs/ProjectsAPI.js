@@ -107,6 +107,31 @@ const uploadImageFile = async (file, folder) => {
   }
 }
 
+const normalizeMemberFields = (body = {}) => {
+  if (!Object.prototype.hasOwnProperty.call(body, 'memberIds') &&
+      !Object.prototype.hasOwnProperty.call(body, 'memberId')) {
+    return body
+  }
+
+  let memberIds = []
+  if (Array.isArray(body.memberIds)) {
+    memberIds = body.memberIds
+      .map((id) => (id?._id || id)?.toString())
+      .filter(Boolean)
+  } else if (body.memberId) {
+    memberIds = [(body.memberId?._id || body.memberId).toString()]
+  }
+
+  return {
+    ...body,
+    memberIds,
+    memberId: memberIds[0] || null
+  }
+}
+
+const populateCardMembers = (query) =>
+  query.populate('memberId', 'name email profilePic').populate('memberIds', 'name email profilePic')
+
 const normalizeCardCreatePayload = (body = {}) => {
   const title = body.title?.trim()
   if (!title) {
@@ -512,9 +537,9 @@ projectsApp.get('/lists/:id/cards', auth, async (req, res, next) => {
     const list = await findAccessibleList(req.params.id, req.user.id)
     if (!list) return res.status(404).json({ message: 'List not found' })
 
-    const cards = await taskModel.find({ listId: req.params.id, isActive: true })
-      .populate('memberId', 'name email profilePic')
-      .sort({ order: 1, createdAt: 1 })
+    const cards = await populateCardMembers(
+      taskModel.find({ listId: req.params.id, isActive: true })
+    ).sort({ order: 1, createdAt: 1 })
 
     res.status(200).json({ message: 'Cards fetched', payload: cards })
   } catch (err) {
@@ -561,12 +586,19 @@ projectsApp.put('/cards/:id', write, async (req, res, next) => {
       }
     }
 
-    const updated = await taskModel.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true })
+    const updatePayload = normalizeMemberFields(req.body)
+    const updated = await taskModel.findByIdAndUpdate(
+      req.params.id,
+      { $set: updatePayload },
+      { new: true }
+    )
     if (!updated) return res.status(404).json({ message: 'Card not found' })
 
-    getIO().to(`project:${updated.projectId}`).emit('card-updated', updated)
+    const populated = await populateCardMembers(taskModel.findById(updated._id))
 
-    res.status(200).json({ message: 'Card updated', payload: updated })
+    getIO().to(`project:${updated.projectId}`).emit('card-updated', populated)
+
+    res.status(200).json({ message: 'Card updated', payload: populated })
   } catch (err) {
     next(err)
   }

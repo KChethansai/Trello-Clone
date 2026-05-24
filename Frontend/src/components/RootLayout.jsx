@@ -1,4 +1,4 @@
-﻿// RootLayout component: renders a focused piece of the Kanvora UI.
+// RootLayout component: renders a focused piece of the Kanvora UI.
 import { useEffect, useMemo, useState } from 'react'
 import Header from './Header'
 import Navbar from './Navbar'
@@ -22,10 +22,10 @@ import {
 } from '../Styles/common'
 
 //routes where only the dark dashboard Navbar is shown (not the public Header)
-const navbarOnlyRoutes = ['/workspaces']
+const navbarOnlyRoutes = []
 
 //routes where NO header and NO footer are shown (full-screen app pages)
-const noHeaderRoutes = ['/main-page', '/templates', '/workspaces', '/projects']
+const noHeaderRoutes = ['/main-page', '/templates', '/workspaces', '/projects','/login','/register']
 
 //routes where the Footer should be hidden
 const noFooterRoutes = [
@@ -92,7 +92,7 @@ function RootLayout() {
   const commandItems = useMemo(
     () => [
       { label: 'Open dashboard', path: '/main-page', icon: <BsGrid3X3Gap /> },
-      { label: 'Boards', path: '/boards', icon: <BsGrid3X3Gap /> },
+      { label: 'Projects', path: '/workspaces/projects', icon: <BsGrid3X3Gap /> },
       {
         label: 'Templates marketplace',
         path: '/templates',
@@ -103,7 +103,7 @@ function RootLayout() {
         path: '/main-page/notifications',
         icon: <BsBell />
       },
-      { label: 'Settings', path: '/main-page/settings', icon: <BsMoonStars /> }
+      { label: 'Settings', path: '/workspaces/settings', icon: <BsMoonStars /> }
     ],
     []
   )

@@ -183,7 +183,7 @@ function UserMenu({ onClose }) {
       </button>
       <button
         onClick={() => {
-          navigate('/main-page/settings')
+          navigate('/workspaces/settings')
           onClose()
         }}
         className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-sm ${dashboardTextColor} hover:bg-[#27272a] hover:text-white transition-colors`}

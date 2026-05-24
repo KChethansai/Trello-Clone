@@ -74,6 +74,20 @@ export const avatarClasses = [
   'bg-slate-500'
 ]
 
+export const avatarGradients = [
+  'from-rose-500 to-orange-400',
+  'from-violet-500 to-fuchsia-500',
+  'from-sky-500 to-cyan-400',
+  'from-emerald-500 to-teal-400',
+  'from-amber-500 to-yellow-400',
+  'from-indigo-500 to-blue-500',
+  'from-pink-500 to-rose-400',
+  'from-slate-500 to-zinc-400'
+]
+
+const avatarHash = (name = '') =>
+  name.split('').reduce((total, char) => total + char.charCodeAt(0), 0)
+
 export const getPriorityMeta = (priority = 'MEDIUM') =>
   PRIORITY_OPTIONS.find((item) => item.value === priority) ||
   PRIORITY_OPTIONS[1]
@@ -115,11 +129,36 @@ export const getInitials = (name = 'User') =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'U'
 
-export const getAvatarClass = (name = '') => {
-  const hash = name
-    .split('')
-    .reduce((total, char) => total + char.charCodeAt(0), 0)
-  return avatarClasses[hash % avatarClasses.length]
+export const getAvatarClass = (name = '') =>
+  avatarClasses[avatarHash(name) % avatarClasses.length]
+
+export const getAvatarGradient = (name = '') =>
+  avatarGradients[avatarHash(name) % avatarGradients.length]
+
+export const getMemberDisplayName = (member) =>
+  member?.name || member?.email || 'User'
+
+export const getCardMemberIds = (card) => {
+  if (Array.isArray(card?.memberIds) && card.memberIds.length > 0) {
+    return card.memberIds
+      .map((entry) => getId(entry))
+      .filter(Boolean)
+  }
+  const single = getId(card?.memberId)
+  return single ? [single] : []
+}
+
+export const getCardAssignedMembers = (card, memberList = []) => {
+  const populated = Array.isArray(card?.memberIds)
+    ? card.memberIds.filter((entry) => entry && typeof entry === 'object')
+    : []
+  if (populated.length > 0) return populated
+  if (card?.memberId && typeof card.memberId === 'object') return [card.memberId]
+
+  const ids = getCardMemberIds(card)
+  return ids
+    .map((id) => memberList.find((member) => getId(member) === id))
+    .filter(Boolean)
 }
 
 export const formatShortDate = (date) =>

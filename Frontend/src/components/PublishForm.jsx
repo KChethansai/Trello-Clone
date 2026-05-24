@@ -6,6 +6,7 @@ import { API_BASE_URL } from '../config/api'
 import {
   projectInput,
   projectTextarea,
+  commonCheckbox,
   modalPrimaryBtn,
   dashboardMutedColor,
   dashboardBorderColor,
@@ -173,6 +174,7 @@ export default function PublishForm({ project, onClose, onSave }) {
                   type="checkbox"
                   checked={form.viewOnly}
                   onChange={handleChange}
+                  className={commonCheckbox}
                 />
                 Publish as view-only
               </label>

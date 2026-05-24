@@ -128,9 +128,9 @@ export const ListColumn = memo(function ListColumn({
     <div
       ref={setListNodeRef}
       style={style}
-      className={`${listColumnBase} ${
+      className={`${listColumnBase} transition-all duration-300 ease-in-out ${
         listStatus?.list || listColumnDefault
-      } ${collapsed ? 'max-h-14 overflow-hidden' : ''}`}
+      } ${collapsed ? 'max-h-14 overflow-hidden' : 'max-h-[2000px]'}`}
     >
       {/* list header */}
       <div

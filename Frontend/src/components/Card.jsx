@@ -28,11 +28,12 @@ import {
   getDueDateMeta,
   getNonStatusLabels,
   getLabelColorClass,
-  getAvatarClass,
-  getInitials,
+  getMemberDisplayName,
+  getCardAssignedMembers,
   formatShortDate,
   PRIORITY_OPTIONS
 } from '../utils/projectUtils'
+import MemberAvatar from './MemberAvatar'
 
 export const SortableCard = memo(function SortableCard({
   card,
@@ -45,8 +46,7 @@ export const SortableCard = memo(function SortableCard({
   const sortableId = `card:${card._id}`
   const status = getCardStatus(card)
   const priority = getPriorityMeta(card.priority)
-  const assignedMember =
-    typeof card.memberId === 'object' ? card.memberId : null
+  const assignedMembers = getCardAssignedMembers(card)
   const commentCount = card.commentCount ?? card.comments?.length ?? 0
   const dueMeta = getDueDateMeta(card.dueDate)
   const nonStatusLabels = getNonStatusLabels(card.labels || [])
@@ -75,8 +75,21 @@ export const SortableCard = memo(function SortableCard({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: transition || 'transform 180ms ease, opacity 160ms ease',
-    opacity: isDragging ? 0.4 : 1
+    opacity: isDragging ? 0.4 : 1,
+    cursor: isDragging ? 'grabbing' : 'pointer'
   }
+
+  const showPriority =
+    card.priority && card.priority !== 'MEDIUM' && card.priority !== 'NONE'
+  const hasMeta =
+    card.dueDate ||
+    card.attachment?.length ||
+    commentCount ||
+    card.estimatedMinutes ||
+    checklistTotal
+
+  // chip style shared by all meta badges
+  const chip = `${cardMetaText} mt-0 inline-flex items-center gap-1 rounded-md bg-white/[0.05] border border-white/[0.07] px-2 py-1`
 
   return (
     <div
@@ -88,13 +101,16 @@ export const SortableCard = memo(function SortableCard({
       className={cardSurface}
       onClick={() => onOpen(card)}
     >
+      {/* cover image */}
       {(card.coverImage?.url || card.attachment?.[0]?.url) && (
         <img
           src={card.coverImage?.url || card.attachment[0].url}
           alt=""
-          className="mb-2 h-24 w-full rounded-md object-cover"
+          className="mb-3 h-24 w-full rounded-lg object-cover"
         />
       )}
+
+      {/* hover action buttons */}
       <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           onClick={(e) => {
@@ -120,12 +136,9 @@ export const SortableCard = memo(function SortableCard({
         )}
       </div>
 
-      <div className="flex items-start justify-between gap-2 pr-8">
-        <p className={cardText}>{card.title}</p>
-      </div>
-
+      {/* labels — above title for visual hierarchy */}
       {nonStatusLabels.length > 0 && (
-        <div className="flex gap-1 mt-2 flex-wrap">
+        <div className="mb-2 flex flex-wrap gap-1">
           {nonStatusLabels.map((label, i) => (
             <span
               key={i}
@@ -137,23 +150,12 @@ export const SortableCard = memo(function SortableCard({
         </div>
       )}
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span
-          className={`rounded px-2 py-0.5 text-[10px] font-semibold ${priority.className}`}
-        >
-          {priority.label}
-        </span>
-        {card.recurring?.enabled && (
-          <span
-            className={`${cardMetaText} mt-0 rounded-md bg-black/20 px-2 py-1`}
-          >
-            {card.recurring.interval}
-          </span>
-        )}
-      </div>
+      {/* title */}
+      <p className={`${cardText} pr-7 line-clamp-2`}>{card.title}</p>
 
+      {/* status badge (only when no label already covers status) */}
       {!card.labels?.length && status && (
-        <div className="flex gap-1 mt-2">
+        <div className="mt-2">
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.badge}`}
           >
@@ -162,70 +164,85 @@ export const SortableCard = memo(function SortableCard({
         </div>
       )}
 
-      {(card.dueDate ||
-        card.attachment?.length ||
-        commentCount ||
-        card.estimatedMinutes ||
-        checklistTotal) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {card.dueDate && (
-            <span
-              className={`${cardMetaText} ${dueMeta} mt-0 rounded-md px-2 py-1`}
+      {/* bottom row: meta chips + priority + avatar */}
+      {(showPriority ||
+        card.recurring?.enabled ||
+        hasMeta ||
+        assignedMembers.length > 0) && (
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          {/* left: chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {showPriority && (
+              <span
+                className={`rounded px-2 py-0.5 text-[10px] font-semibold ${priority.className}`}
+              >
+                {priority.label}
+              </span>
+            )}
+            {card.recurring?.enabled && (
+              <span className={chip}>{card.recurring.interval}</span>
+            )}
+            {card.dueDate && (
+              <span className={`${chip} ${dueMeta}`}>
+                <BsCalendar className="text-[10px]" />
+                {formatShortDate(card.dueDate)}
+              </span>
+            )}
+            {card.attachment?.length > 0 && (
+              <span className={chip}>
+                <BsPaperclip className="text-[10px]" />
+                {card.attachment.length}
+              </span>
+            )}
+            {card.estimatedMinutes > 0 && (
+              <span className={chip}>
+                <BsClock className="text-[10px]" />
+                {card.estimatedMinutes}m
+              </span>
+            )}
+            {checklistTotal > 0 && (
+              <span className={chip}>
+                <BsCheckSquare className="text-[10px]" />
+                {checklistDone}/{checklistTotal}
+              </span>
+            )}
+            {commentCount > 0 && (
+              <span className={chip}>
+                <BsChat className="text-[10px]" />
+                {commentCount}
+              </span>
+            )}
+          </div>
+
+          {/* right: assigned avatar */}
+          {assignedMembers.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpen(card, { showMembers: true })
+              }}
+              className="flex shrink-0 items-center rounded-full transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4d67]/50"
+              title={`${assignedMembers.map(getMemberDisplayName).join(', ')} — open card to change`}
             >
-              <BsCalendar className="text-[10px]" />
-              {formatShortDate(card.dueDate)}
-            </span>
-          )}
-          {card.attachment?.length > 0 && (
-            <span
-              className={`${cardMetaText} mt-0 rounded-md bg-black/20 px-2 py-1`}
-            >
-              <BsPaperclip className="text-[10px]" />
-              {card.attachment.length}
-            </span>
-          )}
-          {card.estimatedMinutes > 0 && (
-            <span
-              className={`${cardMetaText} mt-0 rounded-md bg-black/20 px-2 py-1`}
-            >
-              <BsClock className="text-[10px]" />
-              {card.estimatedMinutes}m
-            </span>
-          )}
-          {checklistTotal > 0 && (
-            <span
-              className={`${cardMetaText} mt-0 rounded-md bg-black/20 px-2 py-1`}
-            >
-              <BsCheckSquare className="text-[10px]" />
-              {checklistDone}/{checklistTotal}
-            </span>
-          )}
-          {commentCount > 0 && (
-            <span
-              className={`${cardMetaText} mt-0 rounded-md bg-black/20 px-2 py-1`}
-            >
-              <BsChat className="text-[10px]" />
-              {commentCount}
-            </span>
+              <div className="flex -space-x-1.5">
+                {assignedMembers.slice(0, 3).map((member) => (
+                  <MemberAvatar
+                    key={member._id || member.id || member.email}
+                    member={member}
+                    size="sm"
+                    className="ring-2 ring-[#18181b]"
+                  />
+                ))}
+              </div>
+              {assignedMembers.length > 3 && (
+                <span className="ml-1 text-[10px] font-medium text-[#a1a1aa]">
+                  +{assignedMembers.length - 3}
+                </span>
+              )}
+            </button>
           )}
         </div>
-      )}
-      {assignedMember && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (isEditable) onQuickUpdate?.(card._id, { memberId: null })
-          }}
-          className={`mt-3 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${getAvatarClass(assignedMember.name || assignedMember.email)}`}
-          title={
-            isEditable
-              ? 'Click to unassign'
-              : assignedMember.name || assignedMember.email
-          }
-        >
-          {getInitials(assignedMember.name || assignedMember.email)}
-        </button>
       )}
     </div>
   )

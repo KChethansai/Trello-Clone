@@ -1,4 +1,4 @@
-﻿// App router: declares the public, auth, dashboard, and board routes.
+// App router: declares the public, auth, dashboard, and board routes.
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
@@ -26,7 +26,6 @@ const Register = lazy(() => import('./components/Register'))
 const AuthRedirect = lazy(() => import('./components/AuthRedirect'))
 const MainPage = lazy(() => import('./components/MainPage'))
 const Project = lazy(() => import('./components/Project'))
-const Boards = lazy(() => import('./components/Boards'))
 const WorkSpaces = lazy(() => import('./components/WorkSpaces'))
 const Settings = lazy(() => import('./components/Settings'))
 const Notifications = lazy(() => import('./components/Notifications'))
@@ -84,11 +83,13 @@ const router = createBrowserRouter([
       { path: 'register', element: withSuspense(<Register />) },
       {
         path: 'workspaces',
-        element: <ProtectedRoute>{withSuspense(<WorkSpaces />)}</ProtectedRoute>
-      },
-      {
-        path: 'boards',
-        element: <ProtectedRoute>{withSuspense(<Boards />)}</ProtectedRoute>
+        element: <ProtectedRoute>{withSuspense(<WorkSpaces />)}</ProtectedRoute>,
+        children: [
+          { path: 'projects', element: null },
+          { path: 'members', element: null },
+          { path: 'settings', element: null },
+          { path: 'settings/:section', element: withSuspense(<Settings />) }
+        ]
       },
       {
         path: 'templates',
@@ -112,18 +113,12 @@ const router = createBrowserRouter([
         path: 'main-page',
         element: <ProtectedRoute>{withSuspense(<MainPage />)}</ProtectedRoute>,
         children: [
-          { path: 'settings', element: withSuspense(<Settings />) },
-          { path: 'settings/:section', element: withSuspense(<Settings />) },
           { path: 'notifications', element: withSuspense(<Notifications />) },
           { path: 'profile', element: withSuspense(<UserProfile />) }
         ]
       },
       {
         path: 'projects/:projectId',
-        element: <ProtectedRoute>{withSuspense(<Project />)}</ProtectedRoute>
-      },
-      {
-        path: 'boards/:projectId',
         element: <ProtectedRoute>{withSuspense(<Project />)}</ProtectedRoute>
       },
       { path: '*', element: <NotFound /> }

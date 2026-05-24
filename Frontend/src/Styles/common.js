@@ -49,6 +49,16 @@ export const dashboardAccentText = 'text-[#ff8aa0]'
 export const dashboardDangerText = 'text-[#ff6b82]'
 export const dashboardDivider = 'border-white/[0.07]'
 
+// Checkbox
+export const commonCheckbox =
+  'h-4 w-4 shrink-0 cursor-pointer rounded border-white/20 bg-white/5 text-[#ff4d67] focus:ring-[#ff4d67] focus:ring-offset-0 transition-all checked:bg-[#ff4d67]'
+
+// Progress / Badges
+export const progressTrack =
+  'h-1.5 w-full rounded-full bg-white/[0.08] overflow-hidden'
+export const progressFill = 'h-full bg-[#ff4d67] transition-all duration-300'
+export const badgeText = 'text-[10px] font-medium tracking-tight text-[#a3a3ad]'
+
 // Layout
 export const pageBackground = `${surfaceBg} min-h-screen`
 export const pageWrapper = 'max-w-6xl mx-auto px-6 py-16'
@@ -186,8 +196,8 @@ export const listDropZoneOver = 'bg-[#ffffff08]'
 export const addListPanel = 'premium-card rounded-xl w-64 shrink-0 p-3'
 export const addListButton =
   'bg-white/[0.08] hover:bg-white/[0.12] backdrop-blur-sm text-white rounded-xl w-64 shrink-0 px-3 py-2.5 text-sm font-medium flex items-center gap-2 transition-colors border border-white/[0.08]'
-export const projectInput = `w-full bg-[#0a0a0a] border border-[#ff4d67]/60 rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#777781] focus:outline-none focus:ring-2 focus:ring-[#ff4d67]/20`
-export const projectTextarea = `w-full bg-[#0a0a0a] border border-[#ff4d67]/60 rounded-lg p-2.5 text-sm text-white placeholder:text-[#777781] focus:outline-none focus:ring-2 focus:ring-[#ff4d67]/20 resize-none`
+export const projectInput = `w-full bg-[#0a0a0a] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#777781] focus:outline-none focus:border-[#ff4d67] focus:ring-2 focus:ring-[#ff4d67]/20 transition-colors`
+export const projectTextarea = `w-full bg-[#0a0a0a] border border-white/[0.08] rounded-lg p-2.5 text-sm text-white placeholder:text-[#777781] focus:outline-none focus:border-[#ff4d67] focus:ring-2 focus:ring-[#ff4d67]/20 resize-none transition-colors`
 export const projectPrimarySmallBtn = `${dashboardPrimaryBg} ${dashboardPrimaryBgHover} disabled:opacity-50 ${dashboardPrimaryText} text-xs font-semibold px-3 py-1.5 rounded transition-colors`
 export const projectMutedIconBtn = `${dashboardMutedColor} hover:text-white`
 export const cardSurface = `premium-card premium-card-hover rounded-xl p-3 cursor-pointer group relative select-none`
@@ -198,7 +208,7 @@ export const cardMetaText = `text-[10px] ${dashboardMutedColor} mt-1.5 flex item
 export const modalBackdrop =
   'fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-6 px-4 backdrop-blur-md sm:pt-12'
 export const modalPanel =
-  'premium-card animate-enter rounded-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] overflow-y-auto app-scrollbar'
+  'modal-panel premium-card animate-enter rounded-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[92vh]'
 export const modalHeader = `bg-[#111111]/92 border-b border-white/[0.07] px-6 py-4 flex items-start justify-between gap-3`
 export const modalTitleInput = `w-full bg-transparent text-white text-lg font-semibold resize-none focus:outline-none focus:bg-[#0a0a0a] rounded p-1 -ml-1`
 export const modalMutedText = `text-xs ${dashboardMutedColor}`
@@ -354,10 +364,16 @@ export const pubText = 'text-teal-900'
 export const pubMuted = 'text-teal-700'
 export const pubAccentColor = 'text-teal-600'
 export const pubBorder = 'border-teal-100'
-export const pubHeroBg = 'bg-gradient-to-br from-teal-50 via-white to-cyan-50/50'
+export const pubHeroBg =
+  'bg-gradient-to-br from-teal-50 via-white to-cyan-50/50'
 export const pubSectionAlt = 'bg-teal-50'
-export const pubCard = 'bg-white border border-teal-100 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group'
-export const pubBtnPrimary = 'inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50'
-export const pubBtnSecondary = 'inline-flex items-center justify-center gap-2 rounded-lg border border-teal-200 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50'
-export const pubIconBtn = 'inline-flex h-9 w-9 items-center justify-center rounded-lg text-teal-600 hover:bg-teal-100 transition-colors'
-export const pubEyebrow = 'text-xs font-bold uppercase tracking-[0.18em] text-teal-600'
+export const pubCard =
+  'bg-white border border-teal-100 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group'
+export const pubBtnPrimary =
+  'inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50'
+export const pubBtnSecondary =
+  'inline-flex items-center justify-center gap-2 rounded-lg border border-teal-200 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50'
+export const pubIconBtn =
+  'inline-flex h-9 w-9 items-center justify-center rounded-lg text-teal-600 hover:bg-teal-100 transition-colors'
+export const pubEyebrow =
+  'text-xs font-bold uppercase tracking-[0.18em] text-teal-600'

@@ -5,7 +5,7 @@ const requiredFiles = [
   'server.js',
   'config/env.js',
   'config/security.js',
-  'APIs/BoardsAPI.js',
+  'APIs/ProjectsAPI.js',
   'APIs/UserAPI.js',
   'middlewares/errormiddleware.js'
 ]

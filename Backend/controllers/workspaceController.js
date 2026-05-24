@@ -143,12 +143,30 @@ export const updateWorkspace = async (req, res, next) => {
     const userId = req.user.id
     const member = workspace.members.find((m) => m.user?.toString() === userId)
     const isOwner = workspace.owner.toString() === userId
+    const isAdmin = member?.role === 'ADMIN'
+    const isManager = member?.role === 'MANAGER'
 
-    if (!isOwner && member?.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Only Admin or owner can update' })
+    // Only owner or ADMIN can rename the workspace
+    if (req.body.name && !isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Only Admin or owner can rename the workspace' })
+    }
+
+    // Owner, ADMIN, or MANAGER can update member roles
+    if (req.body.members && !isOwner && !isAdmin && !isManager) {
+      return res.status(403).json({ message: 'Only Admin, Manager, or owner can update member roles' })
+    }
+
+    if (!isOwner && !isAdmin && !isManager) {
+      return res.status(403).json({ message: 'Only Admin or owner can update the workspace' })
     }
 
     if (req.body.name) workspace.name = req.body.name.trim()
+    if (req.body.members) {
+      workspace.members = req.body.members.map((m) => ({
+        user: m.user?._id || m.user,
+        role: m.role || 'MEMBER'
+      }))
+    }
     const updated = await workspace.save()
 
     res.status(200).json({ message: 'Workspace updated', payload: updated })

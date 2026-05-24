@@ -15,7 +15,6 @@ import { logger } from './utils/logger.js'
 import { Userapp } from './APIs/UserAPI.js'
 import { oauthApp } from './APIs/OAuthAPI.js'
 import { projectsApp } from './APIs/ProjectsAPI.js'
-import { boardsApp } from './APIs/BoardsAPI.js'
 import { workspaceApp } from './APIs/WorkspaceAPI.js'
 import { commentApp } from './APIs/commentAPI.js'
 import { templeteApp } from './APIs/templateAPI.js'
@@ -97,7 +96,6 @@ app.get('/auth', (req, res) => {
 app.use('/auth', Userapp)
 app.use('/oauth', oauthApp)
 app.use('/projects-api', projectsApp)
-app.use('/boards-api', boardsApp)
 app.use('/api', workspaceApp)
 app.use('/api', commentApp)
 app.use('/api', projectApp)

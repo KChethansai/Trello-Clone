@@ -21,6 +21,12 @@ const TaskSchema = new Schema(
       ref: 'user',
       default: null
     },
+    memberIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'user'
+      }
+    ],
     creatorId: {
       type: Schema.Types.ObjectId,
       ref: 'user'
