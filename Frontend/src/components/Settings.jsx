@@ -315,9 +315,13 @@ function ProfileAndVisibilityPanel() {
 }
 
 function ActivityPanel() {
-  const { activeWorkspace } = useWorkspaceStore()
+  const { activeWorkspace, fetchWorkspaces } = useWorkspaceStore()
   const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchWorkspaces()
+  }, [fetchWorkspaces])
 
   useEffect(() => {
     let ignore = false
@@ -493,9 +497,13 @@ function WorkspaceProjectsPanel() {
 }
 
 function CardsPanel() {
-  const { activeWorkspace } = useWorkspaceStore()
+  const { activeWorkspace, fetchWorkspaces } = useWorkspaceStore()
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchWorkspaces()
+  }, [fetchWorkspaces])
 
   useEffect(() => {
     let ignore = false
