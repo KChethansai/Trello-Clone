@@ -10,7 +10,9 @@ import { createNotification } from './notificationController.js'
 
 const normalizeWorkspaceRole = (role) => {
   const upper = role?.toString().trim().toUpperCase()
-  return ['ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'].includes(upper) ? upper : 'MEMBER'
+  return ['ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'].includes(upper)
+    ? upper
+    : 'MEMBER'
 }
 
 const normalizeInvitationRole = (role) => {
@@ -23,7 +25,12 @@ const getWorkspaceInviteUrl = (token) => {
   return `${baseUrl}/auth?invite=${token}`
 }
 
-const buildInvitationEmail = ({ inviterName, workspaceName, inviteUrl, role }) => {
+const buildInvitationEmail = ({
+  inviterName,
+  workspaceName,
+  inviteUrl,
+  role
+}) => {
   const subject = `You are invited to join ${workspaceName}`
   const text = `Hello,
 
@@ -82,7 +89,7 @@ export const createWorkspace = async (req, res, next) => {
       name: name.trim(),
       owner: req.user.id,
       members: [
-        { user: req.user.id, role: 'ADMIN' },
+        { user: req.user.id, role: 'MANAGER' },
         ...(Array.isArray(members) ? members : [])
       ]
     })
@@ -150,16 +157,24 @@ export const updateWorkspace = async (req, res, next) => {
 
     // Only owner or ADMIN can rename the workspace
     if (req.body.name && !isOwner && !isAdmin) {
-      return res.status(403).json({ message: 'Only Admin or owner can rename the workspace' })
+      return res
+        .status(403)
+        .json({ message: 'Only Admin or owner can rename the workspace' })
     }
 
     // Owner, ADMIN, or MANAGER can update member roles
     if (req.body.members && !isOwner && !isAdmin && !isManager) {
-      return res.status(403).json({ message: 'Only Admin, Manager, or owner can update member roles' })
+      return res
+        .status(403)
+        .json({
+          message: 'Only Admin, Manager, or owner can update member roles'
+        })
     }
 
     if (!isOwner && !isAdmin && !isManager) {
-      return res.status(403).json({ message: 'Only Admin or owner can update the workspace' })
+      return res
+        .status(403)
+        .json({ message: 'Only Admin or owner can update the workspace' })
     }
 
     if (req.body.name) workspace.name = req.body.name.trim()
@@ -223,7 +238,10 @@ export const addMember = async (req, res, next) => {
     )
     const isOwner = workspace.owner.toString() === currentUserId
 
-    if (!isOwner && !['ADMIN', 'MANAGER', 'MEMBER'].includes(currentMember?.role)) {
+    if (
+      !isOwner &&
+      !['ADMIN', 'MANAGER', 'MEMBER'].includes(currentMember?.role)
+    ) {
       return res
         .status(403)
         .json({ message: 'Only workspace members can invite users' })
@@ -246,7 +264,9 @@ export const addMember = async (req, res, next) => {
     if (!targetUser && !normalizedEmail)
       return res.status(400).json({ message: 'userId or email required' })
 
-    const targetEmail = targetUser ? targetUser.email.toLowerCase().trim() : normalizedEmail
+    const targetEmail = targetUser
+      ? targetUser.email.toLowerCase().trim()
+      : normalizedEmail
 
     if (targetUser) {
       const targetUserId = targetUser._id.toString()
@@ -388,23 +408,31 @@ export const removeMember = async (req, res, next) => {
 export const acceptInvitation = async (req, res, next) => {
   try {
     const token = req.body.token || req.query.token
-    if (!token) return res.status(400).json({ message: 'Invitation token required' })
+    if (!token)
+      return res.status(400).json({ message: 'Invitation token required' })
 
     const invitation = await InvitationModel.findOne({ token })
-    if (!invitation) return res.status(404).json({ message: 'Invitation not found' })
+    if (!invitation)
+      return res.status(404).json({ message: 'Invitation not found' })
     if (invitation.expiresAt && invitation.expiresAt < new Date()) {
       return res.status(400).json({ message: 'Invitation has expired' })
     }
 
     const user = await UserModel.findById(req.user.id)
-    if (!user) return res.status(401).json({ message: 'Authentication required' })
+    if (!user)
+      return res.status(401).json({ message: 'Authentication required' })
 
-    if (user.email.toLowerCase().trim() !== invitation.email.toLowerCase().trim()) {
-      return res.status(403).json({ message: 'This invitation is for a different email' })
+    if (
+      user.email.toLowerCase().trim() !== invitation.email.toLowerCase().trim()
+    ) {
+      return res
+        .status(403)
+        .json({ message: 'This invitation is for a different email' })
     }
 
     const workspace = await WorkspaceModel.findById(invitation.workspace)
-    if (!workspace) return res.status(404).json({ message: 'Workspace not found' })
+    if (!workspace)
+      return res.status(404).json({ message: 'Workspace not found' })
 
     const alreadyMember = workspace.members.some(
       (m) => m.user?.toString() === user._id.toString()
@@ -451,5 +479,3 @@ export const acceptInvitation = async (req, res, next) => {
     next(err)
   }
 }
-
-

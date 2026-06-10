@@ -50,9 +50,12 @@ export const useWorkspaceStore = create((set, get) => ({
   fetchWorkspace: async (workspaceId) => {
     if (!workspaceId) return null
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
-        withCredentials: true
-      })
+      const res = await axios.get(
+        `${API_BASE_URL}/api/workspaces/${workspaceId}`,
+        {
+          withCredentials: true
+        }
+      )
       const workspace = res.data.payload || res.data
       set((s) => ({
         workspaces: s.workspaces.map((w) =>
@@ -85,9 +88,13 @@ export const useWorkspaceStore = create((set, get) => ({
   //update workspace name
   updateWorkspace: async (id, data) => {
     try {
-      const res = await axios.put(`${API_BASE_URL}/api/workspaces/${id}`, data, {
-        withCredentials: true
-      })
+      const res = await axios.put(
+        `${API_BASE_URL}/api/workspaces/${id}`,
+        data,
+        {
+          withCredentials: true
+        }
+      )
       const updated = res.data.payload || res.data
       set((s) => ({
         workspaces: s.workspaces.map((w) => (w._id === id ? updated : w)),
@@ -123,9 +130,12 @@ export const useWorkspaceStore = create((set, get) => ({
   //fetch workspace members by fetching the single workspace
   fetchMembers: async (workspaceId) => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/workspaces/${workspaceId}`, {
-        withCredentials: true
-      })
+      const res = await axios.get(
+        `${API_BASE_URL}/api/workspaces/${workspaceId}`,
+        {
+          withCredentials: true
+        }
+      )
       const ws = res.data.payload || res.data
       set({ members: ws.members || [], activeWorkspace: ws })
     } catch {
@@ -141,8 +151,6 @@ export const useWorkspaceStore = create((set, get) => ({
         { email, role },
         { withCredentials: true }
       )
-      //re-fetch members
-      await get().fetchWorkspace(workspaceId)
       return res.data
     } catch (err) {
       throw err
@@ -207,5 +215,3 @@ export const useWorkspaceStore = create((set, get) => ({
     return res.data.payload
   }
 }))
-
-

@@ -27,7 +27,6 @@ import {
   iconButton
 } from '../Styles/common'
 
-
 const memberTabs = [
   { id: 'members', label: 'Members' },
   { id: 'single', label: 'Single-project guests' },
@@ -101,9 +100,7 @@ function ProjectsPanel({ navigate, projects, activeWorkspace }) {
                 <span className="text-sm font-bold text-white drop-shadow">
                   {project.title || project.name}
                 </span>
-                <span className="text-xs text-white/80">
-                  Open board
-                </span>
+                <span className="text-xs text-white/80">Open board</span>
               </div>
             </button>
           ))}
@@ -127,10 +124,12 @@ function MembersPanel({
     const mId = m.user?._id || m.user
     return mId?.toString() === currentUserId?.toString()
   })
-  const isOwner = activeWorkspace?.owner?._id?.toString() === currentUserId?.toString() ||
+  const isOwner =
+    activeWorkspace?.owner?._id?.toString() === currentUserId?.toString() ||
     activeWorkspace?.owner?.toString() === currentUserId?.toString()
   const currentUserRole = currentUserMember?.role || ''
-  const canEditRoles = isOwner || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER'
+  const canEditRoles =
+    isOwner || currentUserRole === 'ADMIN' || currentUserRole === 'MANAGER'
   const [activeMemberTab, setActiveMemberTab] = useState('members')
   const [filterText, setFilterText] = useState('')
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -140,7 +139,10 @@ function MembersPanel({
   const members = useMemo(
     () =>
       (activeWorkspace?.members || []).map((member, index) => {
-        const user = typeof member.user === 'object' && member.user !== null ? member.user : {}
+        const user =
+          typeof member.user === 'object' && member.user !== null
+            ? member.user
+            : {}
         const name = user.name || user.email || 'Workspace member'
         const userId = user._id || member.user
         return {
@@ -175,7 +177,7 @@ function MembersPanel({
       const result = await inviteMember(activeWorkspace._id, inviteEmail.trim())
       setShowInviteModal(false)
       setInviteEmail('')
-      toast.success('Member invited')
+      toast.success(result?.message || 'Invite sent successfully')
       if (result?.warning) toast.warning(result.warning)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not invite member')
@@ -313,27 +315,46 @@ function MembersPanel({
                   <div className="relative">
                     <select
                       value={member.role}
-                      disabled={!canEditRoles || (member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString())}
+                      disabled={
+                        !canEditRoles ||
+                        member.id ===
+                          (
+                            activeWorkspace?.owner?._id ||
+                            activeWorkspace?.owner
+                          )?.toString()
+                      }
                       onChange={async (e) => {
                         if (!activeWorkspace?._id) return
                         try {
                           const newRole = e.target.value
-                          const updatedMembers = (activeWorkspace.members || []).map((m) => {
+                          const updatedMembers = (
+                            activeWorkspace.members || []
+                          ).map((m) => {
                             const mId = m.user?._id || m.user
-                            if (mId === member.id) return { ...m, role: newRole }
+                            if (mId === member.id)
+                              return { ...m, role: newRole }
                             return m
                           })
-                          await updateWorkspace(activeWorkspace._id, { members: updatedMembers })
+                          await updateWorkspace(activeWorkspace._id, {
+                            members: updatedMembers
+                          })
                           toast.success('Role updated')
                         } catch {
                           toast.error('Could not update role')
                         }
                       }}
                       className={`h-9 rounded-lg border border-white/[0.08] bg-[#0a0a0a] px-3 pr-8 text-sm text-white outline-none transition focus:border-[#ff4d67] appearance-none ${
-                        (!canEditRoles || (member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString())) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'
+                        !canEditRoles ||
+                        member.id ===
+                          (
+                            activeWorkspace?.owner?._id ||
+                            activeWorkspace?.owner
+                          )?.toString()
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer hover:border-white/20'
                       }`}
                     >
-                      {(member.role === 'ADMIN' || member.id === (activeWorkspace?.owner?._id || activeWorkspace?.owner)?.toString()) && (
+                      {member.role === 'ADMIN' && (
                         <option value="ADMIN">Admin</option>
                       )}
                       <option value="MANAGER">Manager</option>
@@ -341,8 +362,20 @@ function MembersPanel({
                       <option value="VIEWER">Viewer</option>
                     </select>
                     <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8899a6]">
-                      <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <svg
+                        width="10"
+                        height="6"
+                        viewBox="0 0 10 6"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M1 1L5 5L9 1"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     </span>
                   </div>
@@ -351,7 +384,8 @@ function MembersPanel({
                       onClick={() => handleRemoveMember(member.id)}
                       className={dangerButton}
                     >
-                      <BsBoxArrowRight /> {member.id === currentUserId ? 'Leave' : 'Remove'}
+                      <BsBoxArrowRight />{' '}
+                      {member.id === currentUserId ? 'Leave' : 'Remove'}
                     </button>
                   )}
                 </div>
@@ -373,7 +407,8 @@ function MembersPanel({
 }
 
 function WorkspaceSettingsPanel() {
-  const { activeWorkspace, updateWorkspace, deleteWorkspace } = useWorkspaceStore()
+  const { activeWorkspace, updateWorkspace, deleteWorkspace } =
+    useWorkspaceStore()
   const [workspaceName, setWorkspaceName] = useState(
     activeWorkspace?.name || 'Workspace'
   )
@@ -464,19 +499,29 @@ function WorkspaceSettingsPanel() {
       <div className="mt-5 rounded-2xl border border-red-500/20 bg-[#1d2125] p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Delete workspace</h3>
+            <h3 className="text-sm font-semibold text-white">
+              Delete workspace
+            </h3>
             <p className={`mt-1 text-xs ${dashboardMutedColor}`}>
               Permanently deletes all projects and cards. This cannot be undone.
             </p>
           </div>
           {!showDeleteConfirm ? (
-            <button onClick={() => setShowDeleteConfirm(true)} className={dangerButton}>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className={dangerButton}
+            >
               Delete
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <button onClick={handleDelete} className={dangerButton}>Yes, delete</button>
-              <button onClick={() => setShowDeleteConfirm(false)} className={buttonSecondary}>
+              <button onClick={handleDelete} className={dangerButton}>
+                Yes, delete
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className={buttonSecondary}
+              >
                 Cancel
               </button>
             </div>
@@ -490,14 +535,15 @@ function WorkspaceSettingsPanel() {
 function WorkSpaces() {
   const navigate = useNavigate()
   const location = useLocation()
-  const isPersonalSettings = 
-    location.pathname.startsWith('/workspaces/settings/')
+  const isPersonalSettings = location.pathname.startsWith(
+    '/workspaces/settings/'
+  )
 
   const activeTab = location.pathname.endsWith('/projects')
     ? 'projects'
     : location.pathname.endsWith('/settings')
-    ? 'settings'
-    : 'members'
+      ? 'settings'
+      : 'members'
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { currentUser } = useAuth()
@@ -505,14 +551,16 @@ function WorkSpaces() {
   const {
     activeWorkspace,
     fetchWorkspaces,
-    fetchWorkspace,
     inviteMember,
     removeMember,
     updateWorkspace
   } = useWorkspaceStore()
 
   useEffect(() => {
-    if (location.pathname === '/workspaces' || location.pathname === '/workspaces/') {
+    if (
+      location.pathname === '/workspaces' ||
+      location.pathname === '/workspaces/'
+    ) {
       navigate('/workspaces/members', { replace: true })
     }
   }, [location.pathname, navigate])
@@ -524,10 +572,6 @@ function WorkSpaces() {
   useEffect(() => {
     if (activeWorkspace?._id) fetchProjects(activeWorkspace._id)
   }, [activeWorkspace?._id, fetchProjects])
-
-  useEffect(() => {
-    if (activeWorkspace?._id) fetchWorkspace(activeWorkspace._id)
-  }, [activeWorkspace?._id, fetchWorkspace])
 
   const renderPanel = () => {
     if (isPersonalSettings) {

@@ -211,12 +211,14 @@ function Navbar({ onToggleSidebar }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { currentUser } = useAuth()
-  const { viewMode, setViewMode, activeFilter, setActiveFilter } = useProjectStore()
+  const { viewMode, setViewMode, activeFilter, setActiveFilter } =
+    useProjectStore()
   const { workspaces, setActiveWorkspace } = useWorkspaceStore()
   const [searchFocused, setSearchFocused] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFeatures, setShowFeatures] = useState(false)
-  const { unreadCount, fetchNotifications, bindUserRoom } = useNotificationStore()
+  const { unreadCount, fetchNotifications, bindUserRoom } =
+    useNotificationStore()
   const showViewSwitcher = location.pathname === '/main-page'
 
   const [templates, setTemplates] = useState([])
@@ -226,7 +228,8 @@ function Navbar({ onToggleSidebar }) {
   // Fetch templates on mount
   useEffect(() => {
     if (currentUser) {
-      axios.get(`${API_BASE_URL}/api/templates`, { withCredentials: true })
+      axios
+        .get(`${API_BASE_URL}/api/templates`, { withCredentials: true })
         .then((res) => setTemplates(res.data.payload || []))
         .catch(() => {})
     }
@@ -262,9 +265,7 @@ function Navbar({ onToggleSidebar }) {
   const filteredWorkspaces = useMemo(() => {
     const query = (activeFilter?.search || '').trim().toLowerCase()
     if (!query) return []
-    return workspaces.filter((ws) =>
-      ws.name?.toLowerCase().includes(query)
-    )
+    return workspaces.filter((ws) => ws.name?.toLowerCase().includes(query))
   }, [workspaces, activeFilter?.search])
 
   const filteredTemplates = useMemo(() => {
@@ -367,7 +368,9 @@ function Navbar({ onToggleSidebar }) {
               }`}
             >
               Features
-              <BsChevronDown className={`text-[10px] transition-transform duration-200 ${showFeatures ? 'rotate-180' : ''}`} />
+              <BsChevronDown
+                className={`text-[10px] transition-transform duration-200 ${showFeatures ? 'rotate-180' : ''}`}
+              />
             </button>
 
             {showFeatures && (
@@ -415,7 +418,8 @@ function Navbar({ onToggleSidebar }) {
                       id: 'activity',
                       label: 'Activity',
                       icon: <BsActivity />,
-                      description: 'Track changes and see recent workspace activity.'
+                      description:
+                        'Track changes and see recent workspace activity.'
                     }
                   ].map((option) => (
                     <button
@@ -442,7 +446,9 @@ function Navbar({ onToggleSidebar }) {
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold">{option.label}</span>
+                          <span className="text-xs font-bold">
+                            {option.label}
+                          </span>
                           {viewMode === option.id && (
                             <div className="ml-1 h-1.5 w-1.5 rounded-full bg-[#ff4d67] shadow-[0_0_8px_#ff4d67]" />
                           )}
@@ -472,7 +478,7 @@ function Navbar({ onToggleSidebar }) {
             value={activeFilter?.search || ''}
             onChange={(e) => setActiveFilter({ search: e.target.value })}
             onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
             className={`w-full ${dashboardPanelElevated} border ${dashboardBorderColor} rounded-lg h-8 pl-8 pr-3 text-sm ${dashboardTextColor} placeholder:text-[#8c9bab] focus:outline-none focus:border-[#ff4d67] focus:bg-[#050505] ${dashboardFocusRing} transition-all duration-200 ${
               searchFocused ? 'md:max-w-[20rem]' : ''
             }`}
@@ -586,7 +592,9 @@ function Navbar({ onToggleSidebar }) {
                 </div>
                 {users.length === 0 ? (
                   <div className="px-2 py-1.5 text-xs text-[#71717a] italic">
-                    {searchingUsers ? 'Searching users...' : 'No matching users'}
+                    {searchingUsers
+                      ? 'Searching users...'
+                      : 'No matching users'}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-0.5 mt-1">
@@ -596,7 +604,9 @@ function Navbar({ onToggleSidebar }) {
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(user.email)
-                          toast.success(`Copied email to clipboard: ${user.email}`)
+                          toast.success(
+                            `Copied email to clipboard: ${user.email}`
+                          )
                         }}
                         className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs font-medium text-white hover:bg-white/[0.06] transition-colors w-full"
                         title="Click to copy email"
