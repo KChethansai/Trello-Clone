@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate, Outlet } from 'react-router-dom'
+import { useLocation, useNavigate, Outlet } from 'react-router'
 import {
   BsBoxArrowRight,
   BsList,
@@ -174,12 +174,12 @@ function MembersPanel({
     if (!activeWorkspace?._id || !inviteEmail.trim()) return
     try {
       setSubmittingInvite(true)
-      const result = await inviteMember(activeWorkspacace._id, inviteEmail.trim(), 'MEMBER')
+      const result = await inviteMember(activeWorkspace._id, inviteEmail.trim())
       setShowInviteModal(false)
       setInviteEmail('')
       toast.success(result?.message || 'Invite sent successfully')
+      if (result?.warning) toast.warning(result.warning)
     } catch (err) {
-      console.error('Invite error:', err.response?.data)
       toast.error(err.response?.data?.message || 'Could not invite member')
     } finally {
       setSubmittingInvite(false)
