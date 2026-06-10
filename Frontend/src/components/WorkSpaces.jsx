@@ -178,7 +178,6 @@ function MembersPanel({
       setShowInviteModal(false)
       setInviteEmail('')
       toast.success(result?.message || 'Invite sent successfully')
-      if (result?.warning) toast.warning(result.warning)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not invite member')
     } finally {
