@@ -174,11 +174,12 @@ function MembersPanel({
     if (!activeWorkspace?._id || !inviteEmail.trim()) return
     try {
       setSubmittingInvite(true)
-      const result = await inviteMember(activeWorkspace._id, inviteEmail.trim())
+      const result = await inviteMember(activeWorkspacace._id, inviteEmail.trim(), 'MEMBER')
       setShowInviteModal(false)
       setInviteEmail('')
       toast.success(result?.message || 'Invite sent successfully')
     } catch (err) {
+      console.error('Invite error:', err.response?.data)
       toast.error(err.response?.data?.message || 'Could not invite member')
     } finally {
       setSubmittingInvite(false)
