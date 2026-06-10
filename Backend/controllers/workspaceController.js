@@ -229,8 +229,10 @@ export const addMember = async (req, res, next) => {
     }
 
     const workspace = await WorkspaceModel.findById(req.params.id)
-    if (!workspace)
+    if (!workspace) {
+      console.error(`Workspace not found: ${req.params.id}`)
       return res.status(404).json({ message: 'Workspace not found' })
+    }
 
     const currentUserId = req.user.id
     const currentMember = workspace.members.find(
@@ -238,10 +240,13 @@ export const addMember = async (req, res, next) => {
     )
     const isOwner = workspace.owner.toString() === currentUserId
 
+    console.log(`User ${currentUserId} trying to invite to workspace ${req.params.id}. Is owner: ${isOwner}, Member role: ${currentMember?.role}`)
+
     if (
       !isOwner &&
       !['ADMIN', 'MANAGER', 'MEMBER'].includes(currentMember?.role)
     ) {
+      console.error(`Permission denied: User ${currentUserId} is not owner and doesn't have proper workspace role`)
       return res
         .status(403)
         .json({ message: 'Only workspace members can invite users' })
@@ -252,8 +257,10 @@ export const addMember = async (req, res, next) => {
 
     if (userId) {
       targetUser = await UserModel.findById(userId)
-      if (!targetUser)
+      if (!targetUser) {
+        console.error(`User not found: ${userId}`)
         return res.status(404).json({ message: 'User not found' })
+      }
     } else if (normalizedEmail) {
       targetUser = await UserModel.findOne({ email: normalizedEmail })
     }
@@ -261,8 +268,12 @@ export const addMember = async (req, res, next) => {
     const invitationRole = normalizeInvitationRole(role)
     const workspaceRole = normalizeWorkspaceRole(role)
 
-    if (!targetUser && !normalizedEmail)
+    console.log(`Inviting ${normalizedEmail || userId} to workspace. Role: ${invitationRole}`)
+
+    if (!targetUser && !normalizedEmail) {
+      console.error('Neither userId nor email provided')
       return res.status(400).json({ message: 'userId or email required' })
+    }
 
     const targetEmail = targetUser
       ? targetUser.email.toLowerCase().trim()
@@ -273,8 +284,10 @@ export const addMember = async (req, res, next) => {
       const alreadyMember = workspace.members.some(
         (m) => m.user?.toString() === targetUserId
       )
-      if (alreadyMember)
+      if (alreadyMember) {
+        console.log(`User ${targetUserId} is already a member of workspace`)
         return res.status(400).json({ message: 'User is already a member' })
+      }
     }
 
     // Always create an invitation
@@ -286,19 +299,26 @@ export const addMember = async (req, res, next) => {
     const token = crypto.randomBytes(24).toString('hex')
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-    if (existingInvitation) {
-      existingInvitation.token = token
-      existingInvitation.expiresAt = expiresAt
-      existingInvitation.role = invitationRole
-      await existingInvitation.save()
-    } else {
-      await InvitationModel.create({
-        email: targetEmail,
-        workspace: workspace._id,
-        role: invitationRole,
-        token,
-        expiresAt
-      })
+    try {
+      if (existingInvitation) {
+        console.log(`Updating existing invitation for ${targetEmail}`)
+        existingInvitation.token = token
+        existingInvitation.expiresAt = expiresAt
+        existingInvitation.role = invitationRole
+        await existingInvitation.save()
+      } else {
+        console.log(`Creating new invitation for ${targetEmail} with role ${invitationRole}`)
+        await InvitationModel.create({
+          email: targetEmail,
+          workspace: workspace._id,
+          role: invitationRole,
+          token,
+          expiresAt
+        })
+      }
+    } catch (inviteErr) {
+      console.error('Failed to create/update invitation:', inviteErr.message)
+      throw inviteErr
     }
 
     const inviter = await UserModel.findById(req.user.id).select('name email')
@@ -312,44 +332,55 @@ export const addMember = async (req, res, next) => {
 
     let emailWarning = null
     try {
+      console.log(`Sending invitation email to ${targetEmail}`)
       await sendEmail({
         to: targetEmail,
         subject: emailInfo.subject,
         text: emailInfo.text,
         html: emailInfo.html
       })
+      console.log(`Invitation email sent to ${targetEmail}`)
     } catch (emailError) {
-      console.error('Failed to send workspace invitation email:', emailError)
+      console.error('Failed to send workspace invitation email:', emailError.message || emailError)
       emailWarning =
         'Invitation was created, but email could not be sent because SMTP is not configured.'
     }
 
-    await createActivity({
-      actor: req.user.id,
-      action: 'INVITE_SENT',
-      target: workspace._id,
-      targetModel: 'Workspace',
-      project: null
-    }).catch(() => {})
+    try {
+      await createActivity({
+        actor: req.user.id,
+        action: 'INVITE_SENT',
+        target: workspace._id,
+        targetModel: 'Workspace',
+        project: null
+      })
+    } catch (actErr) {
+      console.error('Failed to create activity:', actErr.message)
+    }
 
     // Send in-website notification if the user exists
     if (targetUser) {
-      await createNotification({
-        userId: targetUser._id,
-        senderId: req.user.id,
-        message: `${inviter?.name || inviter?.email || 'A teammate'} invited you to join the workspace "${workspace.name}" as a ${workspaceRole}`,
-        type: 'member',
-        readLink: `/auth?invite=${token}`
-      }).catch((err) => {
-        console.error('Failed to create in-app workspace notification:', err)
-      })
+      try {
+        await createNotification({
+          userId: targetUser._id,
+          senderId: req.user.id,
+          message: `${inviter?.name || inviter?.email || 'A teammate'} invited you to join the workspace "${workspace.name}" as a ${workspaceRole}`,
+          type: 'member',
+          readLink: `/auth?invite=${token}`
+        })
+      } catch (notifErr) {
+        console.error('Failed to create in-app workspace notification:', notifErr.message)
+      }
     }
 
+    console.log(`Successfully created invitation for ${targetEmail}`)
     return res.status(200).json({
       message: 'Invitation sent',
       warning: emailWarning
     })
   } catch (err) {
+    console.error(`Error in addMember:`, err.message || err)
+    console.error('Stack:', err.stack)
     next(err)
   }
 }
