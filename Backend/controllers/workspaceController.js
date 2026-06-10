@@ -318,6 +318,17 @@ export const addMember = async (req, res, next) => {
       }
     } catch (inviteErr) {
       console.error('Failed to create/update invitation:', inviteErr.message)
+      console.error('Invitation error details:', inviteErr)
+      // Return detailed error to client
+      if (inviteErr.name === 'ValidationError') {
+        const errorMessages = Object.values(inviteErr.errors)
+          .map((e) => e.message)
+          .join(', ')
+        return res.status(400).json({
+          message: `Invitation validation failed: ${errorMessages}`,
+          details: inviteErr.errors
+        })
+      }
       throw inviteErr
     }
 
